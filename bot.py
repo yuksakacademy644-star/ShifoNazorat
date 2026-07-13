@@ -62,6 +62,21 @@ STRINGS = {
     }
 }
 
+# Helper: send alert to admin group or individual admins
+async def send_group_alert(bot, alert_text: str):
+    group_id = config.get_admin_group_id()
+    if group_id:
+        try:
+            await bot.send_message(chat_id=group_id, text=alert_text, parse_mode="Markdown")
+        except Exception as e:
+            logger.error(f"Failed to send alert to group: {e}")
+    else:
+        for admin_id in config.get_admin_ids():
+            try:
+                await bot.send_message(chat_id=admin_id, text=alert_text, parse_mode="Markdown")
+            except Exception as e:
+                logger.error(f"Failed to send alert to admin {admin_id}: {e}")
+
 def get_admin_keyboard(webapp_url, chat_id):
     sep = "&" if "?" in webapp_url else "?"
     main_url = f"{webapp_url}{sep}chat_id={chat_id}" if webapp_url else ""
@@ -299,6 +314,7 @@ async def add_patient_date(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     name = context.user_data['temp_patient_name']
     phone = context.user_data['temp_patient_phone']
     doctor = context.user_data['temp_patient_doctor']
+    chat_id = update.effective_chat.id
     
     patient = database.add_or_update_patient(name, phone, doctor, visit_date)
     
