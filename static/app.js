@@ -74,15 +74,15 @@ function getCachedUser(chatId) {
         const { data, ts } = JSON.parse(raw);
         if (Date.now() - ts > CACHE_TTL_MS) { localStorage.removeItem(CACHE_KEY_PREFIX + chatId); return null; }
         return data;
-    } catch { return null; }
+    } catch(e) { console.warn('Cache read error:', e); return null; }
 }
 
 function setCachedUser(chatId, data) {
-    try { localStorage.setItem(CACHE_KEY_PREFIX + chatId, JSON.stringify({ data, ts: Date.now() })); } catch {}
+    try { localStorage.setItem(CACHE_KEY_PREFIX + chatId, JSON.stringify({ data, ts: Date.now() })); } catch(e) { console.warn('Cache write error:', e); }
 }
 
 function clearCachedUser(chatId) {
-    try { localStorage.removeItem(CACHE_KEY_PREFIX + chatId); } catch {}
+    try { localStorage.removeItem(CACHE_KEY_PREFIX + chatId); } catch(e) { console.warn('Cache clear error:', e); }
 }
 
 // ====== RENDER VIEWS from data ======

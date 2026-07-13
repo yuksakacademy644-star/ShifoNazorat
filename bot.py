@@ -1000,7 +1000,7 @@ async def lifespan(fastapi_app: FastAPI):
     # Start bot updater and polling
     await bot_app.initialize()
     await bot_app.start()
-    await bot_app.updater.start_polling()
+    await bot_app.updater.start_polling(drop_pending_updates=True)
     logger.info("Telegram Bot starts polling.")
     
     # Start the follow-up background checker loop

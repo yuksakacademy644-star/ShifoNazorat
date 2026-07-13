@@ -557,11 +557,17 @@ def add_family_member_api(payload: FamilyAddPayload):
         raise HTTPException(status_code=500, detail="Oila a'zosini qo'shishda xatolik yuz berdi.")
     return {"status": "success", "member": member}
 
-# Mount static folder
-
-app.mount("/static", StaticFiles(directory="static"), name="static")
+# Health check endpoint (Render uses this)
+@app.head("/")
+@app.get("/health")
+def health_check():
+    return {"status": "ok"}
 
 # Serve index.html at root
 @app.get("/")
 def read_root():
     return FileResponse("static/index.html")
+
+# Mount static folder LAST (catch-all)
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
