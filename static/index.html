@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ShifoNazorat - Klinik Boshqaruv</title>
+    <!-- Telegram WebApp SDK -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <!-- DNS prefetch & preconnect for faster external resource loading -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
+    <!-- Google Fonts: preload + swap to avoid render-blocking -->
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap"></noscript>
+    <!-- FontAwesome: preload -->
+    <link rel="preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></noscript>
+    <!-- Local Stylesheet -->
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <!-- App Container -->
+    <div id="app" class="app-container loading">
+        
+        <!-- Loader Screen -->
+        <div id="loader" class="loader-screen">
+            <div class="loader-logo">&#x2665;</div>
+            <h2 style="font-size:1.4rem; font-weight:700; margin-bottom:4px; letter-spacing:0.5px;">ShifoNazorat</h2>
+            <p style="font-size:0.8rem; color:rgba(255,255,255,0.4); margin-bottom:20px;">Klinika Nazorat Markazi</p>
+            <div class="loader-bar-wrap">
+                <div class="loader-bar-fill" id="loader-bar"></div>
+            </div>
+            <p id="loader-status" style="margin-top:16px; font-size:0.88rem; color:rgba(255,255,255,0.55); text-align:center; padding:0 20px;">Serverga ulanmoqda...</p>
+            <button id="loader-retry-btn" onclick="location.reload()" style="display:none; margin-top:20px; padding:10px 28px; background:var(--accent); color:white; border:none; border-radius:12px; font-size:0.95rem; cursor:pointer; font-weight:600;">&#x1F504; Qayta urinib ko'ring</button>
+        </div>
+
+
+        <!-- ================= ADMIN DASHBOARD VIEW ================= -->
+        <div id="admin-view" class="view-container hidden">
+            <!-- Header -->
+            <header class="app-header">
+                <div class="logo-area">
+                    <div class="logo-icon"><i class="fa-solid fa-house-medical"></i></div>
+                    <div>
+                        <h1>ShifoNazorat</h1>
+                        <p>Klinika Nazorat Markazi</p>
+                    </div>
+                </div>
+                <div id="admin-profile" class="profile-badge">
+                    <span id="admin-name">Admin</span>
+                </div>
+            </header>
+
+            <!-- Main Content Area -->
+            <main class="main-content">
+                
+                <!-- 1. Stats Tab -->
+                <section id="tab-stats" class="tab-content">
+                    <h2 class="tab-title">Tizim Statistikasi</h2>
+                    
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="card-icon blue"><i class="fa-solid fa-users"></i></div>
+                            <div class="card-info">
+                                <span class="card-label">Bemorlar soni</span>
+                                <h3 id="stat-total">0</h3>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="card-icon green"><i class="fa-solid fa-user-check"></i></div>
+                            <div class="card-info">
+                                <span class="card-label">Faol bemorlar</span>
+                                <h3 id="stat-active">0</h3>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="card-icon red"><i class="fa-solid fa-user-xmark"></i></div>
+                            <div class="card-info">
+                                <span class="card-label">Norozi bemorlar</span>
+                                <h3 id="stat-norozi">0</h3>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="card-icon gold"><i class="fa-solid fa-star"></i></div>
+                            <div class="card-info">
+                                <span class="card-label">O'rtacha baho</span>
+                                <h3 id="stat-rating">0.0</h3>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="card-icon"><i class="fa-solid fa-arrows-spin" style="color:#a78bfa;"></i></div>
+                            <div class="card-info">
+                                <span class="card-label">Qayta kelganlar</span>
+                                <h3 id="stat-repeat">0</h3>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="card-icon"><i class="fa-solid fa-comment-medical" style="color:#22d3ee;"></i></div>
+                            <div class="card-info">
+                                <span class="card-label">Fikrdagilar</span>
+                                <h3 id="stat-rated-count">0</h3>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Satisfaction visualization -->
+                    <div class="glass-panel satisfaction-box">
+                        <h4>Ko'rsatkichlar tahlili</h4>
+                        <div class="progress-bar-container">
+                            <div class="progress-bar-labels">
+                                <span>Xizmat sifati reytingi</span>
+                                <span id="progress-percent">0%</span>
+                            </div>
+                            <div class="progress-bar-bg">
+                                <div id="progress-bar-fill" class="progress-bar-fill" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Rating Breakdown -->
+                    <div class="glass-panel rating-breakdown-box">
+                        <h4>Baholar tahlili</h4>
+                        <div class="rating-stars-list">
+                            <div class="rating-star-row">
+                                <span>5 <i class="fa-solid fa-star gold-icon"></i></span>
+                                <div class="breakdown-bar-bg"><div id="star-5-fill" class="breakdown-bar-fill" style="width: 0%"></div></div>
+                                <span id="star-5-count">0</span>
+                            </div>
+                            <div class="rating-star-row">
+                                <span>4 <i class="fa-solid fa-star gold-icon"></i></span>
+                                <div class="breakdown-bar-bg"><div id="star-4-fill" class="breakdown-bar-fill" style="width: 0%"></div></div>
+                                <span id="star-4-count">0</span>
+                            </div>
+                            <div class="rating-star-row">
+                                <span>3 <i class="fa-solid fa-star gold-icon"></i></span>
+                                <div class="breakdown-bar-bg"><div id="star-3-fill" class="breakdown-bar-fill" style="width: 0%"></div></div>
+                                <span id="star-3-count">0</span>
+                            </div>
+                            <div class="rating-star-row">
+                                <span>2 <i class="fa-solid fa-star gold-icon"></i></span>
+                                <div class="breakdown-bar-bg"><div id="star-2-fill" class="breakdown-bar-fill" style="width: 0%"></div></div>
+                                <span id="star-2-count">0</span>
+                            </div>
+                            <div class="rating-star-row">
+                                <span>1 <i class="fa-solid fa-star gold-icon"></i></span>
+                                <div class="breakdown-bar-bg"><div id="star-1-fill" class="breakdown-bar-fill" style="width: 0%"></div></div>
+                                <span id="star-1-count">0</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Doctor KPIs -->
+                    <div class="glass-panel kpis-box mt-4">
+                        <h4><i class="fa-solid fa-user-doctor"></i> Shifokorlar KPI statistikasi</h4>
+                        <div style="overflow-x: auto; margin-top: 10px;">
+                            <table class="kpi-table">
+                                <thead>
+                                    <tr>
+                                        <th>Shifokor ismi</th>
+                                        <th>Jami bemorlar</th>
+                                        <th>Qayta kelganlar</th>
+                                        <th>Qaytish ko'rsatkichi</th>
+                                        <th>O'rtacha baho</th>
+                                        <th>Daromad</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="kpi-tbody">
+                                    <!-- Rendered dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Financial Analytics & ROI -->
+                    <div class="glass-panel roi-box mt-4">
+                        <h4><i class="fa-solid fa-sack-dollar"></i> Moliyaviy tahlil & ROI</h4>
+                        
+                        <!-- Set budget input -->
+                        <div class="budget-input-row" style="display:flex; gap:10px; margin: 12px 0; align-items:center;">
+                            <label style="font-size:0.9rem; font-weight:500;">Marketing byudjeti ($):</label>
+                            <input type="number" id="roi-budget-input" style="flex:1; padding:6px 12px; border-radius:8px; border:1px solid rgba(255,255,255,0.2); background:rgba(0,0,0,0.2); color:white;" min="0">
+                            <button id="btn-save-budget" class="btn-primary" style="padding:6px 14px; font-size:0.85rem;">Saqlash</button>
+                        </div>
+
+                        <div class="stats-grid" style="grid-template-columns: repeat(2, 1fr); margin-top: 15px;">
+                            <div class="stat-card">
+                                <div class="card-icon"><i class="fa-solid fa-wallet" style="color:#10b981;"></i></div>
+                                <div class="card-info">
+                                    <span class="card-label">Jami daromad</span>
+                                    <h3 id="roi-revenue">0 UZS</h3>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="card-icon"><i class="fa-solid fa-hand-holding-dollar" style="color:#f59e0b;"></i></div>
+                                <div class="card-info">
+                                    <span class="card-label">Sotib olish xarajati (CAC)</span>
+                                    <h3 id="roi-cac">0 UZS</h3>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="card-icon"><i class="fa-solid fa-chart-line" style="color:#8b5cf6;"></i></div>
+                                <div class="card-info">
+                                    <span class="card-label">Net Foyda</span>
+                                    <h3 id="roi-profit">0 UZS</h3>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="card-icon"><i class="fa-solid fa-percent" style="color:#ec4899;"></i></div>
+                                <div class="card-info">
+                                    <span class="card-label">Marketing ROI</span>
+                                    <h3 id="roi-percent">0%</h3>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="tab-add" class="tab-content hidden">
+                    <h2 class="tab-title">Yangi Bemor Qo'shish</h2>
+                    <div class="glass-panel form-container">
+                        <form id="add-patient-form">
+                            <div class="form-group">
+                                <label for="bemor_ismi"><i class="fa-solid fa-user"></i> Bemor ismi va familiyasi</label>
+                                <input type="text" id="bemor_ismi" required placeholder="Masalan: Abdullayev Temur">
+                            </div>
+                            <div class="form-group">
+                                <label for="bemor_telefoni"><i class="fa-solid fa-phone"></i> Telefon raqami</label>
+                                <input type="tel" id="bemor_telefoni" required placeholder="+998901234567">
+                            </div>
+                            <div class="form-group">
+                                <label for="shifokor_ismi"><i class="fa-solid fa-user-doctor"></i> Shifokor ismi</label>
+                                <input type="text" id="shifokor_ismi" required placeholder="Dr. Ergashev Z." list="doctors-datalist">
+                                <datalist id="doctors-datalist"></datalist>
+                            </div>
+                            <div class="form-group">
+                                <label for="tashrif_maqsadi"><i class="fa-solid fa-notes-medical"></i> Tashrif maqsadi</label>
+                                <input type="text" id="tashrif_maqsadi" placeholder="Masalan: Dastlabki ko'rik, Nazorat">
+                            </div>
+                            <div class="form-group">
+                                <label for="oxirgi_tashrif_sanasi"><i class="fa-solid fa-calendar-day"></i> Tashrif sanasi</label>
+                                <input type="date" id="oxirgi_tashrif_sanasi" required>
+                                <button type="button" id="btn-set-today" class="btn-secondary-mini">Bugun</button>
+                            </div>
+                            <div class="form-group">
+                                <label><i class="fa-solid fa-calendar-plus"></i> Keyingi tekshiruv sanasi</label>
+                                <div class="checkup-presets">
+                                    <button type="button" class="preset-btn" data-months="3">3 oy</button>
+                                    <button type="button" class="preset-btn" data-months="6">6 oy</button>
+                                    <button type="button" class="preset-btn" data-months="12">1 yil</button>
+                                    <button type="button" class="preset-btn" data-months="24">2 yil</button>
+                                </div>
+                                <input type="date" id="rejalashtirilgan_tekshiruv" placeholder="Keyingi tekshiruv sanasi">
+                            </div>
+                            <button type="submit" class="btn-primary"><i class="fa-solid fa-floppy-disk"></i> Ma'lumotlarni saqlash</button>
+                        </form>
+                    </div>
+                </section>
+
+                <!-- 3. Patient List Tab -->
+                <section id="tab-list" class="tab-content hidden">
+                    <div class="list-header-row">
+                        <h2 class="tab-title">Bemorlar Bazasi</h2>
+                        <div class="search-box">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                            <input type="text" id="search-input" placeholder="Ism, shifokor yoki telefon...">
+                        </div>
+                    </div>
+
+                    <!-- Filters -->
+                    <div class="filter-pills">
+                        <button class="filter-pill active" data-filter="all">Barchasi</button>
+                        <button class="filter-pill" data-filter="today"><i class="fa-solid fa-bell"></i> Bugun</button>
+                        <button class="filter-pill" data-filter="3days">3 kun ichida</button>
+                        <button class="filter-pill" data-filter="good">Yaxshi (4-5⭐)</button>
+                        <button class="filter-pill" data-filter="bad">Norozi (1-3⭐)</button>
+                        <button class="filter-pill" data-filter="callback"><i class="fa-solid fa-phone-volume"></i> Qo'ng'iroq</button>
+                        <button class="filter-pill" data-filter="repeat">Qayta kelganlar</button>
+                        <button class="filter-pill" data-filter="pending">Kutilmoqda</button>
+                    </div>
+
+                    <div id="patients-list-container" class="patients-list">
+                        <!-- Loaded dynamically -->
+                    </div>
+                </section>
+
+                <!-- 4. Settings Tab -->
+                <section id="tab-settings" class="tab-content hidden">
+                    <h2 class="tab-title">Tizim Sozlamalari</h2>
+                    
+                    <div class="glass-panel settings-container">
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <h3>Avtomatik xabarlar</h3>
+                                <p>Bemorlarga 3 kundan keyin fikr bilish xabarlarini yuborish.</p>
+                            </div>
+                            <label class="switch">
+                                <input type="checkbox" id="setting-auto-messages">
+                                <span class="slider round"></span>
+                            </label>
+                        </div>
+
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <h3>Test rejimi</h3>
+                                <p>Kechikish vaqtini 3 kundan 1 daqiqaga qisqartiradi.</p>
+                            </div>
+                            <label class="switch">
+                                <input type="checkbox" id="setting-test-mode">
+                                <span class="slider round"></span>
+                            </label>
+                        </div>
+
+                        <div class="settings-footer">
+                            <p><i class="fa-solid fa-circle-info"></i> Boshqa sozlamalar (Masalan, Guruh ID va Admin ID) `.env` faylida o'zgartiriladi.</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 5. Bookings Tab -->
+                <section id="tab-bookings" class="tab-content hidden">
+                    <h2 class="tab-title">Qabullar Jadvali</h2>
+                    
+                    <!-- Filter and search for bookings -->
+                    <div class="booking-filters" style="display:flex; gap:8px; margin-bottom:15px; overflow-x:auto; padding-bottom:5px;">
+                        <button class="booking-filter-pill active" data-bfilter="all">Barchasi</button>
+                        <button class="booking-filter-pill" data-bfilter="Kutilmoqda">Kutilmoqda</button>
+                        <button class="booking-filter-pill" data-bfilter="Keldi">Kelganlar</button>
+                        <button class="booking-filter-pill" data-bfilter="Kelmadi">Kelmaganlar</button>
+                        <button class="booking-filter-pill" data-bfilter="Bekor qilindi">Bekor qilinganlar</button>
+                    </div>
+
+                    <div id="bookings-list-container" class="patients-list">
+                        <!-- Loaded dynamically -->
+                    </div>
+                </section>
+
+                <!-- 6. Admin Q&A Tab -->
+                <section id="tab-qa" class="tab-content hidden">
+                    <h2 class="tab-title">Bemorlar Savollari</h2>
+                    
+                    <div id="admin-qa-list-container" class="patients-list">
+                        <!-- Loaded dynamically -->
+                    </div>
+                </section>
+            </main>
+
+            <!-- Bottom Navigation Bar -->
+            <nav class="bottom-nav">
+                <button class="nav-item active" data-tab="stats">
+                    <i class="fa-solid fa-chart-pie"></i>
+                    <span>Statistika</span>
+                </button>
+                <button class="nav-item" data-tab="add">
+                    <i class="fa-solid fa-user-plus"></i>
+                    <span>Qo'shish</span>
+                </button>
+                <button class="nav-item" data-tab="list">
+                    <i class="fa-solid fa-address-book"></i>
+                    <span>Bemorlar</span>
+                </button>
+                <button class="nav-item" data-tab="bookings">
+                    <i class="fa-solid fa-calendar-check"></i>
+                    <span>Qabullar</span>
+                </button>
+                <button class="nav-item" data-tab="qa">
+                    <i class="fa-solid fa-comments"></i>
+                    <span>Savollar</span>
+                </button>
+                <button class="nav-item" data-tab="settings">
+                    <i class="fa-solid fa-sliders"></i>
+                    <span>Sozlamalar</span>
+                </button>
+            </nav>
+        </div>
+
+        <!-- ================= PATIENT PORTAL VIEW ================= -->
+        <div id="patient-view" class="view-container hidden">
+            <header class="app-header text-center">
+                <div class="logo-icon center"><i class="fa-solid fa-house-medical"></i></div>
+                <h1 id="patient-welcome">Xush kelibsiz!</h1>
+                <p>Klinikamiz xizmat sifati tizimi</p>
+            </header>
+
+            <!-- Patient View Navigation Tabs -->
+            <div class="patient-tabs">
+                <button class="patient-tab-btn active" data-ptab="rating">
+                    <i class="fa-solid fa-star"></i> Baholash
+                </button>
+                <button class="patient-tab-btn" data-ptab="booking">
+                    <i class="fa-solid fa-calendar-plus"></i> Yozilish
+                </button>
+                <button class="patient-tab-btn" data-ptab="emr">
+                    <i class="fa-solid fa-file-medical"></i> Medkarta
+                </button>
+                <button class="patient-tab-btn" data-ptab="qa">
+                    <i class="fa-solid fa-comments"></i> Savollar
+                </button>
+                <button class="patient-tab-btn" data-ptab="family">
+                    <i class="fa-solid fa-people-roof"></i> Oilam
+                </button>
+                <button class="patient-tab-btn" data-ptab="profile">
+                    <i class="fa-solid fa-user"></i> Profil
+                </button>
+            </div>
+
+            <main class="main-content">
+                <!-- 1. Patient Rating Tab -->
+                <div id="ptab-rating" class="patient-tab-content">
+                    <div class="glass-panel patient-card">
+                        <div class="patient-visit-details">
+                            <h3><i class="fa-solid fa-circle-check"></i> Oxirgi tashrifingiz</h3>
+                            <div class="details-grid">
+                                <div>
+                                    <span class="label">Shifokor</span>
+                                    <span id="patient-doctor" class="value">Dr. Yuksel</span>
+                                </div>
+                                <div>
+                                    <span class="label">Sana</span>
+                                    <span id="patient-visit-date" class="value">2026-07-12</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Rating Area -->
+                        <div id="patient-rating-box" class="patient-rating-section">
+                            <h4>Xizmat ko'rsatish sifatini baholang:</h4>
+                            <p class="rating-sub">Sizning bahoyingiz biz uchun juda muhim</p>
+                            
+                            <div class="stars-rating">
+                                <button class="star-btn" data-value="1" title="Juda yomon"><i class="fa-regular fa-star"></i></button>
+                                <button class="star-btn" data-value="2" title="Yomon"><i class="fa-regular fa-star"></i></button>
+                                <button class="star-btn" data-value="3" title="O'rta"><i class="fa-regular fa-star"></i></button>
+                                <button class="star-btn" data-value="4" title="Yaxshi"><i class="fa-regular fa-star"></i></button>
+                                <button class="star-btn" data-value="5" title="A'lo"><i class="fa-regular fa-star"></i></button>
+                            </div>
+                            
+                            <div id="rating-desc" class="rating-description">Bahoni tanlang</div>
+                            <button id="btn-submit-rating" class="btn-primary disabled" disabled>Bahoni yuborish</button>
+                        </div>
+
+                        <!-- Rated Thank You Box -->
+                        <div id="patient-thankyou-box" class="thankyou-section hidden">
+                            <div class="check-icon"><i class="fa-solid fa-circle-check animate-scale"></i></div>
+                            <h3>Baholaganingiz uchun rahmat!</h3>
+                            <p id="patient-feedback-response">Fikringiz muvaffaqiyatli saqlandi.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. Patient Profile Tab -->
+                <div id="ptab-profile" class="patient-tab-content hidden">
+                    <div class="glass-panel patient-profile-card">
+                        <h3 class="tab-title" style="margin-bottom: 16px;">Bemor Profili</h3>
+                        <div class="profile-details-list">
+                            <div class="profile-details-row">
+                                <span class="profile-label"><i class="fa-solid fa-id-card"></i> Ism va familiya:</span>
+                                <span id="prof-name" class="profile-value">-</span>
+                            </div>
+                            <div class="profile-details-row">
+                                <span class="profile-label"><i class="fa-solid fa-phone"></i> Telefon raqam:</span>
+                                <span id="prof-phone" class="profile-value">-</span>
+                            </div>
+                            <div class="profile-details-row">
+                                <span class="profile-label"><i class="fa-solid fa-shield-heart"></i> Status:</span>
+                                <span id="prof-status" class="profile-value">-</span>
+                            </div>
+                            <div class="profile-details-row">
+                                <span class="profile-label"><i class="fa-solid fa-arrows-spin"></i> Tashriflar soni:</span>
+                                <span id="prof-visits" class="profile-value">-</span>
+                            </div>
+                            <div class="profile-details-row">
+                                <span class="profile-label"><i class="fa-solid fa-calendar-day"></i> Oxirgi tashrif:</span>
+                                <span id="prof-last-visit" class="profile-value">-</span>
+                            </div>
+                            <div class="profile-details-row">
+                                <span class="profile-label"><i class="fa-solid fa-user-doctor"></i> Shifokor:</span>
+                                <span id="prof-doctor" class="profile-value">-</span>
+                            </div>
+                            <div class="profile-details-row">
+                                <span class="profile-label"><i class="fa-solid fa-star"></i> Oxirgi bahoingiz:</span>
+                                <span id="prof-last-rating" class="profile-value">-</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. Patient Booking Tab -->
+                <div id="ptab-booking" class="patient-tab-content hidden">
+                    <div class="glass-panel patient-card">
+                        <h3 style="margin-bottom:12px;"><i class="fa-solid fa-calendar-plus"></i> Qabulga yozilish</h3>
+                        
+                        <div class="form-group">
+                            <label>Shifokorni tanlang</label>
+                            <select id="pbook-doctor-select" class="form-select">
+                                <option value="">Shifokorni tanlang...</option>
+                                <!-- Loaded dynamically -->
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Sana</label>
+                            <input type="date" id="pbook-date-input" class="form-input">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Bo'sh vaqtlar</label>
+                            <div id="pbook-slots-grid" class="slots-grid" style="display:grid; grid-template-columns: repeat(3, 1fr); gap:8px; margin-top:10px;">
+                                <p class="text-center" style="grid-column: 1 / -1; color:rgba(255,255,255,0.4); font-size:0.9rem;">Shifokor va sanani tanlang...</p>
+                            </div>
+                        </div>
+
+                        <div id="pbook-summary" class="booking-summary hidden" style="margin-top:15px; padding:12px; background:rgba(255,255,255,0.05); border-radius:8px;">
+                            <p>👨‍⚕️ <strong>Shifokor:</strong> <span id="pbook-sum-doctor"></span></p>
+                            <p>📅 <strong>Vaqt:</strong> <span id="pbook-sum-datetime"></span></p>
+                            <p>💰 <strong>Qabul narxi:</strong> <span id="pbook-sum-price">100,000 UZS</span></p>
+                        </div>
+
+                        <button id="btn-pbook-submit" class="btn-primary mt-4 disabled" disabled style="width:100%;">Tasdiqlash va yozilish</button>
+                    </div>
+                </div>
+
+                <!-- 4. Patient EMR/Medical Card Tab -->
+                <div id="ptab-emr" class="patient-tab-content hidden">
+                    <div class="glass-panel patient-card">
+                        <h3 style="margin-bottom:12px;"><i class="fa-solid fa-file-medical"></i> Elektron tibbiy karta</h3>
+                        
+                        <div class="emr-sub-tabs" style="display:flex; gap:8px; margin-bottom:12px; overflow-x:auto; padding-bottom:4px;">
+                            <button class="filter-pill active" id="p-emr-records-tab" onclick="switchPatientEMRTab('records')">Diagnoz & Xulosalar</button>
+                            <button class="filter-pill" id="p-emr-labs-tab" onclick="switchPatientEMRTab('labs')">Tahlil natijalari</button>
+                            <button class="filter-pill" id="p-emr-visits-tab" onclick="switchPatientEMRTab('visits')">Tashriflar tarixi</button>
+                            <button class="filter-pill" id="p-emr-next-tab" onclick="switchPatientEMRTab('next')">Kelgusi qabul</button>
+                        </div>
+
+                        <div id="p-emr-records-container" class="emr-history-list">
+                            <!-- Loaded dynamically -->
+                        </div>
+
+                        <div id="p-emr-labs-container" class="emr-history-list hidden">
+                            <!-- Loaded dynamically -->
+                        </div>
+
+                        <div id="p-emr-visits-container" class="emr-history-list hidden">
+                            <!-- Loaded dynamically -->
+                        </div>
+
+                        <div id="p-emr-next-container" class="emr-history-list hidden">
+                            <!-- Loaded dynamically -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 5. Patient Q&A Tab -->
+                <div id="ptab-qa" class="patient-tab-content hidden">
+                    <div class="glass-panel patient-card">
+                        <h3 style="margin-bottom:8px;"><i class="fa-solid fa-comments"></i> Shifokor bilan chat</h3>
+                        <p style="font-size:0.85rem; color:rgba(255,255,255,0.6); margin-bottom:15px;">
+                            Sizda tashxis yoki dori-darmonlar bo'yicha savol bormi? Uni pastda yozib qoldiring. Shifokor javobi sizga bot orqali boradi.
+                        </p>
+                        
+                        <div id="qa-messages-list" class="qa-messages-list" style="max-height: 250px; overflow-y: auto; margin-bottom: 15px; display: flex; flex-direction: column; gap: 10px; padding: 10px; background: rgba(0,0,0,0.15); border-radius: 8px;">
+                            <!-- QA history loaded dynamically -->
+                        </div>
+                        
+                        <div class="form-group" style="margin-top: 10px;">
+                            <label>Savolingizni yozing</label>
+                            <textarea id="qa-text-input" class="form-input" style="height: 70px; resize: none;" placeholder="Savolingizni kiriting..."></textarea>
+                        </div>
+                        
+                        <button id="btn-qa-submit" class="btn-primary" style="width:100%;">Savolni yuborish</button>
+                    </div>
+                </div>
+
+                <!-- 6. Patient Family Tab -->
+                <div id="ptab-family" class="patient-tab-content hidden">
+                    <div class="glass-panel patient-card">
+                        <h3 style="margin-bottom:8px;"><i class="fa-solid fa-people-roof"></i> Oilaviy profil</h3>
+                        <p style="font-size:0.85rem; color:rgba(255,255,255,0.6); margin-bottom:15px;">
+                            Bitta akkaunt orqali oila a'zolaringizning medkartalarini boshqaring va ularning ismlarini tanlab ma'lumotlarni ko'ring.
+                        </p>
+                        
+                        <div id="family-members-list" class="family-members-list" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px;">
+                            <!-- Family members listed dynamically -->
+                        </div>
+                        
+                        <div class="add-family-member-section" style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
+                            <h4>Yangi oila a'zosi qo'shish</h4>
+                            <div class="form-group" style="margin-top:10px;">
+                                <label>Ism va familiya</label>
+                                <input type="text" id="family-name-input" class="form-input" placeholder="Masalan: Malika Aliyeva">
+                            </div>
+                            <div class="form-group">
+                                <label>Telefon raqami</label>
+                                <input type="text" id="family-phone-input" class="form-input" placeholder="Masalan: +998901234567">
+                            </div>
+                            <button id="btn-family-add" class="btn-primary" style="width:100%; margin-top:10px;">Oila a'zosini qo'shish</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Contact & Info -->
+                <div class="glass-panel info-card">
+                    <h4>Klinika ma'lumotlari</h4>
+                    <p><i class="fa-solid fa-phone"></i> +998 (71) 123-45-67</p>
+                    <p><i class="fa-solid fa-location-dot"></i> Toshkent sh., Yunusobod tumani</p>
+                    <p><i class="fa-solid fa-clock"></i> Ish vaqti: 09:00 - 18:00 (Du-Sha)</p>
+                </div>
+            </main>
+        </div>
+
+        <!-- ================= GUEST / UNREGISTERED VIEW ================= -->
+        <div id="guest-view" class="view-container hidden">
+            <main class="main-content center-flex">
+                <div class="glass-panel text-center max-w-sm">
+                    <div class="warning-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                    <h2>Tizimda topilmadingiz</h2>
+                    <p>Ushbu boshqaruv panelini ochish uchun, iltimos avval Telegram botimizda telefon raqamingizni tasdiqlang va ro'yxatdan o'ting.</p>
+                    <button onclick="window.Telegram.WebApp.close()" class="btn-primary mt-4">Botga qaytish</button>
+                </div>
+            </main>
+        </div>
+
+        <!-- ================= EDIT PATIENT MODAL ================= -->
+        <div id="edit-modal" class="modal-overlay hidden">
+            <div class="modal-box glass-panel">
+                <div class="modal-header">
+                    <h3><i class="fa-solid fa-pen-to-square"></i> Bemor ma'lumotlarini tahrirlash</h3>
+                    <button class="modal-close" onclick="closeEditModal()"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <form id="edit-patient-form">
+                    <input type="hidden" id="edit-patient-id">
+                    <div class="form-group">
+                        <label>Bemor ismi</label>
+                        <input type="text" id="edit-bemor-ismi" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Telefon</label>
+                        <input type="tel" id="edit-bemor-telefoni" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Shifokor</label>
+                        <input type="text" id="edit-shifokor-ismi" required list="edit-doctors-datalist">
+                        <datalist id="edit-doctors-datalist"></datalist>
+                    </div>
+                    <div class="form-group">
+                        <label>Tashrif maqsadi</label>
+                        <input type="text" id="edit-tashrif-maqsadi">
+                    </div>
+                    <div class="form-group">
+                        <label>Tashrif sanasi</label>
+                        <input type="date" id="edit-oxirgi-tashrif">
+                    </div>
+                    <div class="form-group">
+                        <label><i class="fa-solid fa-calendar-plus"></i> Keyingi tekshiruv sanasi</label>
+                        <div class="checkup-presets">
+                            <button type="button" class="preset-btn" data-months="3" data-target="edit-rejalashtirilgan">3 oy</button>
+                            <button type="button" class="preset-btn" data-months="6" data-target="edit-rejalashtirilgan">6 oy</button>
+                            <button type="button" class="preset-btn" data-months="12" data-target="edit-rejalashtirilgan">1 yil</button>
+                            <button type="button" class="preset-btn" data-months="24" data-target="edit-rejalashtirilgan">2 yil</button>
+                        </div>
+                        <input type="date" id="edit-rejalashtirilgan">
+                    </div>
+                    <div class="form-group">
+                        <label>Status</label>
+                        <select id="edit-status" class="form-select">
+                            <option value="Faol">Faol</option>
+                            <option value="Kelgan">Kelgan</option>
+                            <option value="Kutilyapti">Kutilyapti</option>
+                            <option value="Qayta qo'ng'iroq qilish kerak">Qayta qo'ng'iroq</option>
+                            <option value="Norozi">Norozi</option>
+                        </select>
+                    </div>
+                    <div style="display:flex;gap:10px;margin-top:8px;">
+                        <button type="submit" class="btn-primary" style="flex:1;"><i class="fa-solid fa-floppy-disk"></i> Saqlash</button>
+                        <button type="button" class="btn-secondary" onclick="closeEditModal()" style="flex:0.4;">Bekor</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- ================= PATIENT MEDKARTA MODAL ================= -->
+        <div id="medkarta-modal" class="modal-overlay hidden">
+            <div class="modal-box glass-panel" style="max-width: 600px; width:90%; max-height:90vh; display:flex; flex-direction:column;">
+                <div class="modal-header" style="flex-shrink:0;">
+                    <h3><i class="fa-solid fa-file-medical"></i> Bemor tibbiy kartasi: <span id="medkarta-patient-name"></span></h3>
+                    <button class="modal-close" onclick="closeMedkartaModal()"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                
+                <div class="emr-sub-tabs" style="display:flex; gap:8px; margin-bottom:15px; flex-shrink:0;">
+                    <button class="filter-pill active" id="admin-emr-tab-btn" onclick="switchAdminEMRTab('emr')">Tashriflar & Diagnozlar</button>
+                    <button class="filter-pill" id="admin-labs-tab-btn" onclick="switchAdminEMRTab('labs')">Laboratoriya tahlillari</button>
+                </div>
+
+                <div style="flex:1; overflow-y:auto; padding-right:5px;">
+                    <!-- EMR TAB -->
+                    <div id="admin-emr-tab-content">
+                        <!-- Form to add record -->
+                        <form id="add-emr-record-form" style="margin-bottom: 20px; padding-bottom:15px; border-bottom:1px solid rgba(255,255,255,0.1);">
+                            <h4 style="margin-bottom:10px;"><i class="fa-solid fa-file-medical"></i> Yangi xulosa qo'shish</h4>
+                            <div class="form-group">
+                                <label>Shifokor ismi</label>
+                                <input type="text" id="emr-doctor-name" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Sana</label>
+                                <input type="date" id="emr-visit-date" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Diagnoz (Tashxis)</label>
+                                <textarea id="emr-diagnosis" rows="2" style="width:100%; padding:8px; border-radius:8px; border:1px solid rgba(255,255,255,0.2); background:rgba(0,0,0,0.2); color:white; font-family:inherit;" required placeholder="Bemor tashxisi yoki holatini yozing..."></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label>Dori-darmonlar jadvali (Tavsiyalar)</label>
+                                <textarea id="emr-prescription" rows="2" style="width:100%; padding:8px; border-radius:8px; border:1px solid rgba(255,255,255,0.2); background:rgba(0,0,0,0.2); color:white; font-family:inherit;" placeholder="Tavsiya etilayotgan dorilar jadvali..."></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label>Tahlil natijasi (Ixtiyoriy fayl/PDF/Rasm)</label>
+                                <input type="file" id="emr-file-input" accept="application/pdf,image/*" style="width:100%; border:none; padding:5px 0;">
+                            </div>
+                            <div class="form-group" style="display:none;">
+                                <label>Eslatmalar</label>
+                                <input type="text" id="emr-notes" style="width:100%; padding:8px; border-radius:8px; border:1px solid rgba(255,255,255,0.2); background:rgba(0,0,0,0.2); color:white;">
+                            </div>
+                            <button type="submit" class="btn-primary" style="width:100%;"><i class="fa-solid fa-floppy-disk"></i> Saqlash va Bemorga yuborish</button>
+                        </form>
+
+                        <!-- EMR History List -->
+                        <div id="admin-emr-history" class="emr-history-list">
+                            <!-- Loaded dynamically -->
+                        </div>
+                    </div>
+
+                    <!-- LABS TAB -->
+                    <div id="admin-labs-tab-content" class="hidden">
+                        <!-- Form to upload PDF lab result -->
+                        <form id="upload-lab-form" style="margin-bottom: 20px; padding-bottom:15px; border-bottom:1px solid rgba(255,255,255,0.1);">
+                            <h4 style="margin-bottom:10px;"><i class="fa-solid fa-file-arrow-up"></i> Yangi PDF tahlil natijasini yuklash</h4>
+                            <div class="form-group">
+                                <label>Tahlil nomi (masalan, Qon tahlili)</label>
+                                <input type="text" id="lab-test-name" required>
+                            </div>
+                            <div class="form-group">
+                                <label>PDF Hujjat</label>
+                                <input type="file" id="lab-file-input" accept="application/pdf" required style="width:100%; border:none; padding:5px 0;">
+                            </div>
+                            <button type="submit" class="btn-primary" style="width:100%;"><i class="fa-solid fa-upload"></i> Yuklash va Bot orqali yuborish</button>
+                        </form>
+
+                        <!-- Labs List -->
+                        <div id="admin-labs-list" class="emr-history-list">
+                            <!-- Loaded dynamically -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast Notifications -->
+        <div id="toast-container" class="toast-container"></div>
+
+    </div>
+
+    <!-- Application Script: defer so HTML parses first -->
+    <script src="/static/app.js" defer></script>
+</body>
+</html>
