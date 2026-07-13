@@ -508,10 +508,13 @@ def get_patient_by_id(patient_id):
 def get_unique_doctors():
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT DISTINCT shifokor_ismi FROM patients WHERE shifokor_ismi != '' ORDER BY shifokor_ismi")
-    rows = cursor.fetchall()
+    cursor.execute("SELECT DISTINCT shifokor_ismi FROM patients WHERE shifokor_ismi != ''")
+    patients_docs = [row[0] for row in cursor.fetchall() if row[0]]
+    cursor.execute("SELECT DISTINCT name FROM doctors WHERE name != ''")
+    table_docs = [row[0] for row in cursor.fetchall() if row[0]]
+    all_docs = sorted(list(set(patients_docs + table_docs)))
     conn.close()
-    return [row[0] for row in rows if row[0]]
+    return all_docs
 
 def get_todays_checkups():
     today = datetime.now().strftime("%Y-%m-%d")
@@ -596,6 +599,24 @@ def get_all_doctors():
     rows = cursor.fetchall()
     conn.close()
     return [dict(row) for row in rows]
+
+def add_doctor(name, specialty="", available_hours="09:00,10:00,11:00,12:00,14:00,15:00,16:00,17:00", price=100000.0):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "INSERT INTO doctors (name, specialty, available_hours, price) VALUES (?, ?, ?, ?)",
+            (name, specialty, available_hours, price)
+        )
+        conn.commit()
+        inserted_id = cursor.lastrowid
+        cursor.execute("SELECT * FROM doctors WHERE id = ?", (inserted_id,))
+        row = cursor.fetchone()
+        conn.close()
+        return dict(row) if row else None
+    except sqlite3.IntegrityError:
+        conn.close()
+        return None
 
 def get_available_slots(doctor_name, date_str):
     conn = get_db_connection()

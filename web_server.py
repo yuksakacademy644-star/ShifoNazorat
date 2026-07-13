@@ -57,6 +57,12 @@ class DoctorUpdateChatIdPayload(BaseModel):
     doctor_id: int
     chat_id: Optional[int] = None
 
+class DoctorAddPayload(BaseModel):
+    name: str
+    specialty: Optional[str] = ""
+    price: Optional[float] = 100000.0
+    available_hours: Optional[str] = "09:00,10:00,11:00,12:00,14:00,15:00,16:00,17:00"
+
 # Ensure static directory exists
 os.makedirs("static", exist_ok=True)
 
@@ -571,6 +577,18 @@ def add_family_member_api(payload: FamilyAddPayload):
 def update_doctor_chat_id_api(payload: DoctorUpdateChatIdPayload):
     database.update_doctor_chat_id(payload.doctor_id, payload.chat_id)
     return {"status": "success"}
+
+@app.post("/api/doctors/add")
+def add_doctor_api(payload: DoctorAddPayload):
+    doc = database.add_doctor(
+        name=payload.name,
+        specialty=payload.specialty,
+        available_hours=payload.available_hours,
+        price=payload.price
+    )
+    if not doc:
+        raise HTTPException(status_code=400, detail="Ushbu nomli shifokor allaqachon mavjud yoki xato ma'lumot kiritildi.")
+    return {"status": "success", "doctor": doc}
 
 @app.get("/api/doctor/bookings")
 def get_doctor_bookings_api(chat_id: int):

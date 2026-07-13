@@ -313,6 +313,28 @@
 
                     </div>
 
+                    <!-- Add Doctor Section -->
+                    <div class="glass-panel mt-4">
+                        <h4 style="margin: 0 0 10px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
+                            <i class="fa-solid fa-user-doctor" style="color:var(--accent);"></i> Yangi shifokor qo'shish
+                        </h4>
+                        <form id="admin-add-doctor-form" style="display:flex; flex-direction:column; gap:10px; margin-top: 10px;">
+                            <div class="form-group" style="margin: 0;">
+                                <input type="text" id="add-doc-name" class="form-input" style="padding: 8px 12px; font-size: 0.9rem;" placeholder="Shifokor F.I.Sh. (masalan: Dr. Ergashev Z.)" required>
+                            </div>
+                            <div class="form-group" style="margin: 0;">
+                                <input type="text" id="add-doc-specialty" class="form-input" style="padding: 8px 12px; font-size: 0.9rem;" placeholder="Mutaxassisligi (masalan: Stomatolog)">
+                            </div>
+                            <div class="form-group" style="margin: 0; display: flex; gap: 10px;">
+                                <input type="number" id="add-doc-price" class="form-input" style="padding: 8px 12px; font-size: 0.9rem; flex: 1;" placeholder="Qabul narxi (so'mda)" value="100000">
+                                <input type="text" id="add-doc-hours" class="form-input" style="padding: 8px 12px; font-size: 0.9rem; flex: 1.5;" placeholder="Ish soatlari (vergul bilan)" value="09:00,10:00,11:00,12:00,14:00,15:00,16:00,17:00">
+                            </div>
+                            <button type="submit" class="btn-primary" style="padding: 8px 15px; font-size: 0.9rem; margin-top: 5px;">
+                                <i class="fa-solid fa-plus"></i> Shifokorni qo'shish
+                            </button>
+                        </form>
+                    </div>
+
                     <!-- Doctor Linking Section -->
                     <div class="glass-panel mt-4">
                         <h4 style="margin: 0 0 10px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;"><i class="fa-solid fa-link" style="color:var(--accent);"></i> Shifokorlarni ulash (Telegram ID)</h4>

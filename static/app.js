@@ -800,6 +800,49 @@ let selectedBookingSlot = null;
 
 // 1. Setup new event listeners
 function setupClinicAutomationEventListeners() {
+    // Admin add doctor form submit
+    const addDoctorForm = document.getElementById("admin-add-doctor-form");
+    if (addDoctorForm) {
+        addDoctorForm.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const name = document.getElementById("add-doc-name").value.trim();
+            const specialty = document.getElementById("add-doc-specialty").value.trim();
+            const price = parseFloat(document.getElementById("add-doc-price").value) || 100000;
+            const available_hours = document.getElementById("add-doc-hours").value.trim();
+
+            try {
+                showToast("Shifokor qo'shilmoqda...", "info");
+                const res = await fetch("/api/doctors/add", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        name: name,
+                        specialty: specialty,
+                        price: price,
+                        available_hours: available_hours
+                    })
+                });
+
+                if (res.ok) {
+                    showToast("Yangi shifokor muvaffaqiyatli qo'shildi!", "success");
+                    addDoctorForm.reset();
+                    // Set defaults back
+                    document.getElementById("add-doc-price").value = "100000";
+                    document.getElementById("add-doc-hours").value = "09:00,10:00,11:00,12:00,14:00,15:00,16:00,17:00";
+                    // Reload doctors linking list
+                    loadDoctorsLinkList();
+                    // Reload datalists so the new doctor is available for autocomplete/dropdowns
+                    loadDoctorsDatalist();
+                } else {
+                    const data = await res.json();
+                    showToast(data.detail || "Xatolik yuz berdi!", "error");
+                }
+            } catch (err) {
+                showToast("Aloqa xatosi!", "error");
+            }
+        });
+    }
+
     // Save marketing budget button
     const btnSaveBudget = document.getElementById("btn-save-budget");
     if (btnSaveBudget) {
