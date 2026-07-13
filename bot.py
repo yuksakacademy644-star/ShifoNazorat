@@ -964,8 +964,13 @@ async def lifespan(fastapi_app: FastAPI):
         
     bot_app = Application.builder().token(config.BOT_TOKEN).request(request_obj).build()
     
-    # Start automatic SSH tunnel asynchronously in the background
-    asyncio.create_task(start_auto_tunnel(bot_app))
+    # Start automatic SSH tunnel only if NOT running on Render
+    is_render = os.getenv("RENDER") == "true"
+    if not is_render:
+        logger.info("Initializing local SSH tunnel (Serveo)...")
+        asyncio.create_task(start_auto_tunnel(bot_app))
+    else:
+        logger.info("Running on Render. Automatic SSH tunnel disabled.")
     
     # FSM Conversation Handler for adding patient
     conv_handler = ConversationHandler(
