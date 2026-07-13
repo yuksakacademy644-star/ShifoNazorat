@@ -111,7 +111,9 @@ def check_banned(func):
             text_to_check = update.callback_query.data
 
         if is_malicious(text_to_check):
-            logger.warning(f"Malicious content detected from user {chat_id}! Blocking user.")
+            username = update.effective_user.username if update.effective_user else ""
+            logger.warning(f"Malicious content detected from user {chat_id} ({username})! Blocking user.")
+            database.log_attack(chat_id, username, text_to_check)
             database.block_user(chat_id)
             # Notify the user
             try:
@@ -171,9 +173,18 @@ def get_admin_keyboard(webapp_url, chat_id):
     main_url = f"{webapp_url}{sep}chat_id={chat_id}" if webapp_url else ""
 
     keyboard = [
-        [KeyboardButton(text="🏥 Admin App", web_app=WebAppInfo(url=main_url))]
+        [KeyboardButton(text="🏥 Admin App", web_app=WebAppInfo(url=main_url))],
+        [KeyboardButton(text="⚙️ Bot boshqaruvi")]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
+def get_bot_admin_menu():
+    keyboard = [
+        [InlineKeyboardButton("📢 Reklama / E'lon yuborish", callback_data="admin_broadcast")],
+        [InlineKeyboardButton("🛡️ Hujumlar tarixi (Oxirgi 10)", callback_data="admin_attack_logs")],
+        [InlineKeyboardButton("🔓 Bloklangan foydalanuvchilar", callback_data="admin_blocked_list")]
+    ]
+    return InlineKeyboardMarkup(keyboard)
 
 def get_doctor_keyboard(webapp_url, chat_id):
     sep = "&" if "?" in webapp_url else "?"
@@ -263,6 +274,47 @@ async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     admin_ids = config.get_admin_ids()
     
     if chat_id in admin_ids:
+        # Check if awaiting broadcast
+        admin_state = context.user_data.get('admin_state')
+        if admin_state == 'awaiting_broadcast':
+            if text == "❌ Bekor qilish":
+                context.user_data.pop('admin_state', None)
+                await update.message.reply_text(
+                    "E'lon bekor qilindi.",
+                    reply_markup=get_admin_keyboard(config.get_webapp_url(), chat_id)
+                )
+                return
+            
+            # Start the broadcast
+            context.user_data.pop('admin_state', None)
+            await update.message.reply_text("📢 Reklama / E'lon yuborilmoqda, iltimos kuting...")
+            
+            active_chats = database.get_all_active_chat_ids()
+            success_count = 0
+            for u_id in active_chats:
+                if u_id == chat_id:
+                    continue
+                try:
+                    await context.bot.copy_message(chat_id=u_id, from_chat_id=chat_id, message_id=update.message.message_id)
+                    success_count += 1
+                    await asyncio.sleep(0.05)
+                except Exception:
+                    pass
+            
+            await update.message.reply_text(
+                f"✅ E'lon {success_count} ta faol foydalanuvchiga muvaffaqiyatli yuborildi!",
+                reply_markup=get_admin_keyboard(config.get_webapp_url(), chat_id)
+            )
+            return
+
+        if text == "⚙️ Bot boshqaruvi":
+            await update.message.reply_text(
+                "⚙️ **BOT BOSHQARUV PANELI**\n\nIltimos, kerakli bo'limni tanlang:",
+                reply_markup=get_bot_admin_menu(),
+                parse_mode="Markdown"
+            )
+            return
+
         await update.message.reply_text(
             "Boshqaruv paneli tugmasidan foydalaning:",
             reply_markup=get_admin_keyboard(config.get_webapp_url(), chat_id)
@@ -771,6 +823,72 @@ async def handle_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE) -
                         await context.bot.send_message(chat_id=admin_id, text=alert_text, parse_mode="Markdown")
                     except Exception:
                         pass
+                        
+    elif data == "admin_broadcast":
+        context.user_data['admin_state'] = 'awaiting_broadcast'
+        await query.message.reply_text(
+            "📢 **Reklama / E'lon yuborish bo'limi**\n\n"
+            "Iltimos, barcha foydalanuvchilarga yubormoqchi bo'lgan xabaringizni kiriting:\n\n"
+            "Amalni bekor qilish uchun `❌ Bekor qilish` deb yozishingiz yoki tugmasini bosishingiz mumkin.",
+            reply_markup=get_cancel_keyboard(),
+            parse_mode="Markdown"
+        )
+        
+    elif data == "admin_attack_logs":
+        logs = database.get_attack_logs(10)
+        if not logs:
+            await query.message.reply_text("🛡️ Hujumlar tarixi bo'sh. Hech qanday shubhali faollik aniqlanmagan.")
+            return
+        
+        text = "🛡️ **XAVFSIZLIK HUJUMLARI BATAFSIL TAHLILI**\n\n"
+        for i, log in enumerate(logs, 1):
+            payload_clean = log['payload'].replace('<', '&lt;').replace('>', '&gt;')
+            if len(payload_clean) > 200:
+                payload_clean = payload_clean[:200] + "..."
+            username_val = log['username'] if log['username'] else "noma'lum"
+            text += (
+                f"**{i}. Sana:** {log['detected_at']}\n"
+                f"👤 **User:** `{log['chat_id']}` (@{username_val})\n"
+                f"💬 **Payload:** `{payload_clean}`\n"
+                f"----------------------------------\n"
+            )
+        await query.message.reply_text(text, reply_markup=get_bot_admin_menu(), parse_mode="Markdown")
+        
+    elif data == "admin_blocked_list":
+        blocked = database.get_blocked_users()
+        if not blocked:
+            await query.message.reply_text("🔓 Hozirda bloklangan foydalanuvchilar yo'q.")
+            return
+        
+        text = "🔓 **BLOKLANGAN FOYDALANUVCHILAR RO'YXATI**\n\n"
+        keyboard_buttons = []
+        for u in blocked:
+            name_str = u['bemor_ismi'] or "Noma'lum bemor"
+            text += f"👤 **{name_str}**\nID: `{u['chat_id']}` | Sana: {u['blocked_at']}\n\n"
+            keyboard_buttons.append([
+                InlineKeyboardButton(text=f"🔓 Blokdan ochish: {name_str}", callback_data=f"unblock_user_{u['chat_id']}")
+            ])
+        keyboard_buttons.append([InlineKeyboardButton(text="⚙️ Bosh menu", callback_data="admin_main_menu")])
+        await query.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard_buttons), parse_mode="Markdown")
+        
+    elif data.startswith("unblock_user_"):
+        target_chat_id = int(data.split("_")[2])
+        database.unblock_user(target_chat_id)
+        await query.message.reply_text(f"✅ Foydalanuvchi ({target_chat_id}) blokdan muvaffaqiyatli ochildi!")
+        try:
+            await context.bot.send_message(
+                chat_id=target_chat_id,
+                text="🔓 Sizning akkauntingiz administrator tomonidan blokdan ochildi."
+            )
+        except Exception:
+            pass
+            
+    elif data == "admin_main_menu":
+        await query.message.reply_text(
+            "⚙️ **BOT BOSHQARUV PANELI**\n\nIltimos, kerakli bo'limni tanlang:",
+            reply_markup=get_bot_admin_menu(),
+            parse_mode="Markdown"
+        )
 
 # Send follow-up message function
 async def send_followup_message(bot, chat_id, patient):

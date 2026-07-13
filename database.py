@@ -74,6 +74,16 @@ def init_db():
             blocked_at TEXT DEFAULT (datetime('now', 'localtime'))
         )
     ''')
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS security_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            chat_id INTEGER,
+            username TEXT,
+            payload TEXT,
+            detected_at TEXT DEFAULT (datetime('now', 'localtime'))
+        )
+    ''')
     
     # 1. Table: doctors
     cursor.execute('''
@@ -1232,5 +1242,75 @@ def is_user_blocked(chat_id: int) -> bool:
     row = cursor.fetchone()
     conn.close()
     return True if row else False
+
+def log_attack(chat_id: int, username: str, payload: str):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO security_logs (chat_id, username, payload) VALUES (?, ?, ?)",
+        (chat_id, username or '', payload)
+    )
+    conn.commit()
+    conn.close()
+
+def get_attack_logs(limit=10):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM security_logs ORDER BY id DESC LIMIT ?", (limit,))
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+def get_blocked_users():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT b.chat_id, b.blocked_at, p.bemor_ismi 
+        FROM blocked_users b
+        LEFT JOIN patients p ON b.chat_id = p.chat_id
+        ORDER BY b.blocked_at DESC
+    """)
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+def unblock_user(chat_id: int):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM blocked_users WHERE chat_id = ?", (chat_id,))
+    conn.commit()
+    conn.close()
+
+def get_all_active_chat_ids():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT DISTINCT chat_id 
+        FROM patients 
+        WHERE chat_id IS NOT NULL 
+          AND chat_id != 0 
+          AND chat_id NOT IN (SELECT chat_id FROM blocked_users)
+    """)
+    p_ids = [row[0] for row in cursor.fetchall() if row[0]]
+    
+    cursor.execute("""
+        SELECT DISTINCT chat_id 
+        FROM user_langs 
+        WHERE chat_id NOT IN (SELECT chat_id FROM blocked_users)
+    """)
+    l_ids = [row[0] for row in cursor.fetchall() if row[0]]
+    
+    cursor.execute("""
+        SELECT DISTINCT chat_id 
+        FROM doctors 
+        WHERE chat_id IS NOT NULL 
+          AND chat_id != 0 
+          AND chat_id NOT IN (SELECT chat_id FROM blocked_users)
+    """)
+    d_ids = [row[0] for row in cursor.fetchall() if row[0]]
+    
+    all_ids = sorted(list(set(p_ids + l_ids + d_ids)))
+    conn.close()
+    return all_ids
 
 
