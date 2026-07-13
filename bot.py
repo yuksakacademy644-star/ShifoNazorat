@@ -86,6 +86,14 @@ def get_admin_keyboard(webapp_url, chat_id):
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
+def get_doctor_keyboard(webapp_url, chat_id):
+    sep = "&" if "?" in webapp_url else "?"
+    doc_url = f"{webapp_url}{sep}chat_id={chat_id}" if webapp_url else ""
+    keyboard = [
+        [KeyboardButton(text="👨‍⚕️ Shifokor Kabineti", web_app=WebAppInfo(url=doc_url))]
+    ]
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
 def get_cancel_keyboard():
     return ReplyKeyboardMarkup([["❌ Bekor qilish"]], resize_keyboard=True)
 
@@ -166,6 +174,12 @@ async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         await update.message.reply_text(
             "Boshqaruv paneli tugmasidan foydalaning:",
             reply_markup=get_admin_keyboard(config.get_webapp_url(), chat_id)
+        )
+    elif database.get_doctor_by_chat_id(chat_id):
+        doctor = database.get_doctor_by_chat_id(chat_id)
+        await update.message.reply_text(
+            f"Assalomu alaykum, shifokor {doctor['name']}! 👨‍⚕️\nBoshqaruv menyusidan foydalaning:",
+            reply_markup=get_doctor_keyboard(config.get_webapp_url(), chat_id)
         )
     else:
         # Check if registered patient
@@ -460,36 +474,55 @@ async def handle_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE) -
                 reply_markup=get_admin_keyboard(config.get_webapp_url(), chat_id)
             )
         else:
-            conn = database.get_db_connection()
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM patients WHERE chat_id = ? LIMIT 1", (chat_id,))
-            linked = cursor.fetchone()
-            conn.close()
-            
-            if linked:
+            doctor = database.get_doctor_by_chat_id(chat_id)
+            if doctor:
                 try:
-                    pat_url = config.get_webapp_url()
-                    sep = "&" if "?" in pat_url else "?"
+                    doc_url = config.get_webapp_url()
+                    sep = "&" if "?" in doc_url else "?"
                     await context.bot.set_chat_menu_button(
                         chat_id=chat_id,
-                        menu_button=MenuButtonWebApp(text=STRINGS[lang]['btn_open_app'], web_app=WebAppInfo(url=f"{pat_url}{sep}chat_id={chat_id}"))
+                        menu_button=MenuButtonWebApp(text="👨‍⚕️ Shifokor Kabineti", web_app=WebAppInfo(url=f"{doc_url}{sep}chat_id={chat_id}"))
                     )
-                    logger.info(f"Set patient menu button for {chat_id}")
+                    logger.info(f"Set doctor menu button for {chat_id}")
                 except Exception as me:
-                    logger.error(f"Failed to set patient specific menu button: {me}")
+                    logger.error(f"Failed to set doctor specific menu button: {me}")
 
                 await query.message.reply_text(
-                    STRINGS[lang]['welcome_registered'],
-                    reply_markup=get_patient_keyboard(config.get_webapp_url(), chat_id, lang=lang)
+                    f"Assalomu alaykum, shifokor {doctor['name']}! 👨‍⚕️\n\n"
+                    f"Siz «ShifoNazorat» tizimiga shifokor sifatida ulandingiz. Quyidagi tugma orqali shaxsiy ishchi panelingizni ochishingiz mumkin:",
+                    reply_markup=get_doctor_keyboard(config.get_webapp_url(), chat_id)
                 )
             else:
-                keyboard = [
-                    [KeyboardButton(text=STRINGS[lang]['btn_send_contact'], request_contact=True)]
-                ]
-                await query.message.reply_text(
-                    STRINGS[lang]['ask_contact'],
-                    reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-                )
+                conn = database.get_db_connection()
+                cursor = conn.cursor()
+                cursor.execute("SELECT * FROM patients WHERE chat_id = ? LIMIT 1", (chat_id,))
+                linked = cursor.fetchone()
+                conn.close()
+                
+                if linked:
+                    try:
+                        pat_url = config.get_webapp_url()
+                        sep = "&" if "?" in pat_url else "?"
+                        await context.bot.set_chat_menu_button(
+                            chat_id=chat_id,
+                            menu_button=MenuButtonWebApp(text=STRINGS[lang]['btn_open_app'], web_app=WebAppInfo(url=f"{pat_url}{sep}chat_id={chat_id}"))
+                        )
+                        logger.info(f"Set patient menu button for {chat_id}")
+                    except Exception as me:
+                        logger.error(f"Failed to set patient specific menu button: {me}")
+    
+                    await query.message.reply_text(
+                        STRINGS[lang]['welcome_registered'],
+                        reply_markup=get_patient_keyboard(config.get_webapp_url(), chat_id, lang=lang)
+                    )
+                else:
+                    keyboard = [
+                        [KeyboardButton(text=STRINGS[lang]['btn_send_contact'], request_contact=True)]
+                    ]
+                    await query.message.reply_text(
+                        STRINGS[lang]['ask_contact'],
+                        reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+                    )
         return
 
     # Settings toggle callbacks

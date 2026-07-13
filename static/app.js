@@ -148,6 +148,11 @@ function renderUserView(data) {
 
         initPatientPortalData();
         document.getElementById("patient-view").classList.remove("hidden");
+    } else if (data.role === "doctor") {
+        document.getElementById("doctor-title-name").innerText = data.name;
+        document.getElementById("doctor-chat-id-badge").innerText = `ID: ${currentUser.chat_id}`;
+        document.getElementById("doctor-view").classList.remove("hidden");
+        initDoctorPortalData();
     } else {
         document.getElementById("guest-view").classList.remove("hidden");
     }
@@ -587,6 +592,9 @@ async function loadSettings() {
         
         document.getElementById("setting-auto-messages").checked = settings.auto_messages_enabled === "1";
         document.getElementById("setting-test-mode").checked = settings.test_mode === "1";
+
+        // Load doctors linking list
+        loadDoctorsLinkList();
     } catch (err) {
         console.error("Error loading settings:", err);
     }
@@ -1325,7 +1333,7 @@ async function loadPatientLabsList() {
                     <h5>🧪 ${l.test_name}</h5>
                     <p>Sana: ${l.uploaded_at.split('T')[0]}</p>
                 </div>
-                <a href="${l.pdf_file_path}" target="_blank" class="btn-download-pdf"><i class="fa-solid fa-file-pdf"></i> PDF ko'rish</a>
+                <a href="${l.file_path}" target="_blank" class="btn-download-pdf"><i class="fa-solid fa-file-pdf"></i> PDF ko'rish</a>
             `;
             container.appendChild(div);
         });
@@ -1691,4 +1699,420 @@ async function submitDoctorAnswer(questionId, inputId) {
         showToast("Aloqa xatosi!", "error");
     }
 }
+
+// ====== DOCTOR PORTAL DATA INITIALIZATION ======
+let doctorBookings = [];
+let doctorArchivePatients = [];
+
+function initDoctorPortalData() {
+    // 1. Tab switching
+    document.querySelectorAll("#doctor-view .bottom-nav .nav-item").forEach(item => {
+        // Remove existing listener if any
+        const newItem = item.cloneNode(true);
+        item.parentNode.replaceChild(newItem, item);
+        
+        newItem.addEventListener("click", () => {
+            const tabId = newItem.getAttribute("data-tab");
+            switchDoctorTab(tabId);
+        });
+    });
+
+    // 2. Search input filtering for archive
+    const searchInput = document.getElementById("doc-archive-search-input");
+    if (searchInput) {
+        // Clone to remove previous listeners
+        const newSearchInput = searchInput.cloneNode(true);
+        searchInput.parentNode.replaceChild(newSearchInput, searchInput);
+        
+        newSearchInput.addEventListener("input", (e) => {
+            const query = e.target.value.toLowerCase().trim();
+            filterDoctorArchive(query);
+        });
+    }
+
+    // 3. Form submit event
+    const acceptForm = document.getElementById("doc-accept-form");
+    if (acceptForm) {
+        // Clone to remove previous listeners
+        const newAcceptForm = acceptForm.cloneNode(true);
+        acceptForm.parentNode.replaceChild(newAcceptForm, acceptForm);
+        
+        newAcceptForm.addEventListener("submit", handleDocAcceptSubmit);
+    }
+
+    // 4. Initial loads
+    loadDoctorBookings();
+    loadDoctorArchive();
+    loadDoctorKPIs();
+}
+
+function switchDoctorTab(tabId) {
+    document.querySelectorAll("#doctor-view .bottom-nav .nav-item").forEach(btn => {
+        if (btn.getAttribute("data-tab") === tabId) {
+            btn.classList.add("active");
+        } else {
+            btn.classList.remove("active");
+        }
+    });
+
+    document.querySelectorAll("#doctor-view .tab-content").forEach(content => {
+        if (content.id === `tab-${tabId}`) {
+            content.classList.remove("hidden");
+        } else {
+            content.classList.add("hidden");
+        }
+    });
+}
+
+async function loadDoctorBookings() {
+    const listContainer = document.getElementById("doc-bookings-list");
+    if (!listContainer) return;
+
+    try {
+        listContainer.innerHTML = '<div class="text-center py-8"><i class="fa-solid fa-spinner fa-spin" style="font-size:1.5rem; opacity:0.3;"></i></div>';
+        const res = await fetch(`/api/doctor/bookings?chat_id=${currentUser.chat_id}`);
+        if (!res.ok) throw new Error();
+        doctorBookings = await res.json();
+        
+        // Filter out bookings that are already completed ('Keldi' / 'Bekor qilindi')
+        const activeBookings = doctorBookings.filter(b => b.status === "Kutilmoqda");
+
+        if (activeBookings.length === 0) {
+            listContainer.innerHTML = `
+                <div class="text-center py-8">
+                    <i class="fa-solid fa-calendar-check" style="font-size: 2.5rem; opacity: 0.2; margin-bottom: 10px;"></i>
+                    <p style="color: var(--text-secondary);">Bugun uchun kutilayotgan bemorlar ro'yxati bo'sh.</p>
+                </div>`;
+            return;
+        }
+
+        listContainer.innerHTML = "";
+        activeBookings.forEach(b => {
+            const card = document.createElement("div");
+            card.className = "patient-card-row glass-panel";
+            card.style.margin = "10px 0";
+            card.innerHTML = `
+                <div class="patient-info-col">
+                    <h4 style="margin: 0 0 4px 0; color: white;">${b.bemor_ismi}</h4>
+                    <p class="phone-num" style="margin: 0; font-size: 0.82rem; color: var(--text-secondary);"><i class="fa-solid fa-phone"></i> ${b.bemor_telefoni}</p>
+                    <p class="appointment-time" style="margin: 4px 0 0 0; font-size: 0.85rem; color: white;"><i class="fa-solid fa-clock" style="color:var(--accent); margin-right: 4px;"></i> Soat: <strong>${b.booking_time}</strong></p>
+                </div>
+                <div class="actions-col" style="display:flex; flex-direction:column; gap:6px; min-width: 100px;">
+                    <button class="btn-primary btn-sm" onclick="openDocAcceptModal(${b.id}, '${b.bemor_ismi.replace(/'/g, "\\'")}')" style="padding: 6px 12px; font-size: 0.8rem;">
+                        <i class="fa-solid fa-circle-check"></i> Qabul qilish
+                    </button>
+                    <button class="btn-secondary btn-sm" onclick="openDocPatientHistoryModal(${b.patient_id}, '${b.bemor_ismi.replace(/'/g, "\\'")}', '${b.bemor_telefoni}')" style="padding: 6px 12px; font-size: 0.8rem; background: rgba(255,255,255,0.05); color: white;">
+                        <i class="fa-solid fa-notes-medical"></i> Tarixi
+                    </button>
+                </div>
+            `;
+            listContainer.appendChild(card);
+        });
+    } catch (e) {
+        listContainer.innerHTML = '<div class="text-center py-8" style="color:var(--red);"><i class="fa-solid fa-circle-xmark"></i> Yuklashda xatolik yuz berdi.</div>';
+    }
+}
+
+async function loadDoctorArchive() {
+    const listContainer = document.getElementById("doc-archive-list");
+    if (!listContainer) return;
+
+    try {
+        const res = await fetch("/api/patients");
+        if (res.ok) {
+            doctorArchivePatients = await res.json();
+            renderDoctorArchive(doctorArchivePatients);
+        }
+    } catch (e) {
+        listContainer.innerHTML = '<div class="text-center py-4" style="color:var(--red);">Yuklashda xatolik.</div>';
+    }
+}
+
+function renderDoctorArchive(patientsList) {
+    const listContainer = document.getElementById("doc-archive-list");
+    if (!listContainer) return;
+
+    if (patientsList.length === 0) {
+        listContainer.innerHTML = '<div class="text-center py-4" style="color:var(--text-secondary);">Bemorlar topilmadi.</div>';
+        return;
+    }
+
+    listContainer.innerHTML = "";
+    patientsList.forEach(p => {
+        const card = document.createElement("div");
+        card.className = "patient-card-row glass-panel";
+        card.style.margin = "10px 0";
+        card.style.cursor = "pointer";
+        card.onclick = () => openDocPatientHistoryModal(p.id, p.bemor_ismi, p.bemor_telefoni);
+        card.innerHTML = `
+            <div class="patient-info-col" style="flex: 1;">
+                <h4 style="margin: 0 0 4px 0; color: white;">${p.bemor_ismi}</h4>
+                <p class="phone-num" style="margin: 0; font-size: 0.82rem; color: var(--text-secondary);"><i class="fa-solid fa-phone"></i> ${p.bemor_telefoni}</p>
+                <p style="font-size:0.8rem; color:var(--text-secondary); margin:4px 0 0 0;">
+                    Oxirgi tashrif: ${p.oxirgi_tashrif_sanasi || "Noma'lum"}
+                </p>
+            </div>
+            <div class="actions-col" style="display: flex; align-items: center; justify-content: center;">
+                <i class="fa-solid fa-chevron-right" style="opacity:0.3; color: white;"></i>
+            </div>
+        `;
+        listContainer.appendChild(card);
+    });
+}
+
+function filterDoctorArchive(query) {
+    if (!query) {
+        renderDoctorArchive(doctorArchivePatients);
+        return;
+    }
+    const filtered = doctorArchivePatients.filter(p => 
+        p.bemor_ismi.toLowerCase().includes(query) || 
+        p.bemor_telefoni.includes(query)
+    );
+    renderDoctorArchive(filtered);
+}
+
+async function loadDoctorKPIs() {
+    try {
+        const res = await fetch(`/api/doctor/kpis?chat_id=${currentUser.chat_id}`);
+        if (!res.ok) return;
+        const kpis = await res.json();
+
+        document.getElementById("doc-stat-total-patients").innerText = kpis.total_patients;
+        document.getElementById("doc-stat-avg-rating").innerText = kpis.avg_rating.toFixed(1);
+        document.getElementById("doc-stat-repeat-patients").innerText = kpis.repeat_patients;
+        document.getElementById("doc-stat-repeat-rate").innerText = kpis.repeat_rate + "%";
+    } catch (e) {
+        console.error("Failed to load doctor KPIs:", e);
+    }
+}
+
+// ------ DOCTOR ACCEPTS PATIENT DIALOG ------
+function openDocAcceptModal(bookingId, patientName) {
+    document.getElementById("doc-accept-booking-id").value = bookingId;
+    document.getElementById("doc-accept-patient-name").innerText = patientName;
+    document.getElementById("doc-accept-diagnosis").value = "";
+    document.getElementById("doc-accept-prescription").value = "";
+    document.getElementById("doc-accept-file").value = "";
+    document.getElementById("doc-accept-notes").value = "";
+
+    document.getElementById("doc-accept-modal").classList.remove("hidden");
+}
+
+function closeDocAcceptModal() {
+    document.getElementById("doc-accept-modal").classList.add("hidden");
+}
+
+async function handleDocAcceptSubmit(e) {
+    e.preventDefault();
+    const btn = e.target.querySelector("button[type='submit']");
+    btn.disabled = true;
+    const oldText = btn.innerHTML;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saqlanmoqda...';
+
+    const bookingId = document.getElementById("doc-accept-booking-id").value;
+    const diagnosis = document.getElementById("doc-accept-diagnosis").value.trim();
+    const prescription = document.getElementById("doc-accept-prescription").value.trim();
+    const notes = document.getElementById("doc-accept-notes").value.trim();
+    const fileInput = document.getElementById("doc-accept-file");
+
+    const formData = new FormData();
+    formData.append("booking_id", bookingId);
+    formData.append("diagnosis", diagnosis);
+    formData.append("prescription", prescription);
+    formData.append("notes", notes);
+    if (fileInput.files[0]) {
+        formData.append("file", fileInput.files[0]);
+    }
+
+    try {
+        const res = await fetch("/api/doctor/accept-patient", {
+            method: "POST",
+            body: formData
+        });
+
+        if (res.ok) {
+            showToast("Bemor qabul qilindi va tibbiy xulosa yuborildi!", "success");
+            closeDocAcceptModal();
+            loadDoctorBookings();
+            loadDoctorKPIs();
+        } else {
+            showToast("Xatolik yuz berdi!", "error");
+        }
+    } catch (e) {
+        showToast("Aloqa xatosi!", "error");
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = oldText;
+    }
+}
+
+// ------ DOCTOR: VIEW PATIENT HISTORY ------
+let docHistoryRecords = [];
+let docHistoryLabs = [];
+
+async function openDocPatientHistoryModal(patientId, patientName, patientPhone) {
+    document.getElementById("doc-history-patient-name").innerText = patientName;
+    document.getElementById("doc-history-patient-phone").innerHTML = `<i class="fa-solid fa-phone"></i> ${patientPhone}`;
+    
+    // Reset tab and container views
+    switchDocHistoryTab('records');
+
+    const recordsContainer = document.getElementById("doc-history-records-container");
+    const labsContainer = document.getElementById("doc-history-labs-container");
+    recordsContainer.innerHTML = '<div class="text-center py-4"><i class="fa-solid fa-spinner fa-spin" style="color:var(--accent);"></i></div>';
+    labsContainer.innerHTML = '<div class="text-center py-4"><i class="fa-solid fa-spinner fa-spin" style="color:var(--accent);"></i></div>';
+
+    document.getElementById("doc-history-modal").classList.remove("hidden");
+
+    try {
+        // Fetch records
+        const recRes = await fetch(`/api/patients/${patientId}/records`);
+        docHistoryRecords = recRes.ok ? await recRes.json() : [];
+        
+        // Fetch labs
+        const labRes = await fetch(`/api/patients/${patientId}/labs`);
+        docHistoryLabs = labRes.ok ? await labRes.json() : [];
+
+        renderDocHistoryRecords();
+        renderDocHistoryLabs();
+    } catch (e) {
+        recordsContainer.innerHTML = '<div class="text-center py-4">Tarixni yuklashda xatolik.</div>';
+    }
+}
+
+function closeDocHistoryModal() {
+    document.getElementById("doc-history-modal").classList.add("hidden");
+}
+
+function switchDocHistoryTab(tabType) {
+    if (tabType === 'records') {
+        document.getElementById("btn-doc-emr-records").classList.add("active");
+        document.getElementById("btn-doc-emr-labs").classList.remove("active");
+        document.getElementById("doc-history-records-container").classList.remove("hidden");
+        document.getElementById("doc-history-labs-container").classList.add("hidden");
+    } else {
+        document.getElementById("btn-doc-emr-records").classList.remove("active");
+        document.getElementById("btn-doc-emr-labs").classList.add("active");
+        document.getElementById("doc-history-records-container").classList.add("hidden");
+        document.getElementById("doc-history-labs-container").classList.remove("hidden");
+    }
+}
+
+function renderDocHistoryRecords() {
+    const container = document.getElementById("doc-history-records-container");
+    if (!container) return;
+
+    if (docHistoryRecords.length === 0) {
+        container.innerHTML = '<div class="text-center py-4" style="color:var(--text-secondary);">Tashriflar tarixi mavjud emas.</div>';
+        return;
+    }
+
+    container.innerHTML = "";
+    docHistoryRecords.forEach(r => {
+        const item = document.createElement("div");
+        item.className = "emr-record-item";
+        item.style.padding = "10px; background: rgba(255,255,255,0.03); border-radius: 8px; margin: 8px 0; border: 1px solid rgba(255,255,255,0.05);";
+        item.innerHTML = `
+            <div class="emr-meta" style="display:flex; justify-content:space-between; margin-bottom: 6px; font-size: 0.8rem; color: var(--text-secondary);">
+                <span class="emr-date"><i class="fa-solid fa-calendar-day"></i> ${r.visit_date}</span>
+                <span class="emr-doc"><i class="fa-solid fa-user-doctor"></i> ${r.doctor_name}</span>
+            </div>
+            <div class="emr-content" style="font-size: 0.9rem; color: white;">
+                <p style="margin: 0 0 4px 0;"><strong>Tashxis (Diagnoz):</strong> ${r.diagnosis}</p>
+                ${r.prescription ? `<p style="margin: 0;"><strong>Tavsiyalar:</strong> ${r.prescription}</p>` : ""}
+            </div>
+        `;
+        container.appendChild(item);
+    });
+}
+
+function renderDocHistoryLabs() {
+    const container = document.getElementById("doc-history-labs-container");
+    if (!container) return;
+
+    if (docHistoryLabs.length === 0) {
+        container.innerHTML = '<div class="text-center py-4" style="color:var(--text-secondary);">Tahlil natijalari yuklanmagan.</div>';
+        return;
+    }
+
+    container.innerHTML = "";
+    docHistoryLabs.forEach(l => {
+        const item = document.createElement("div");
+        item.className = "emr-record-item";
+        item.style.padding = "10px; background: rgba(255,255,255,0.03); border-radius: 8px; margin: 8px 0; border: 1px solid rgba(255,255,255,0.05);";
+        item.innerHTML = `
+            <div class="emr-meta" style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 6px;">
+                <span class="emr-date"><i class="fa-solid fa-clock"></i> ${l.uploaded_at}</span>
+            </div>
+            <div class="emr-content" style="font-size: 0.9rem; color: white;">
+                <p style="margin: 0 0 6px 0;"><strong>Tahlil nomi:</strong> ${l.test_name}</p>
+                <a href="${l.file_path}" target="_blank" class="pharmacy-partner-btn" style="margin-top: 4px; width: auto; display: inline-flex; text-decoration: none;">
+                    <i class="fa-solid fa-file-pdf"></i> Tahlilni ko'rish (Hujjat)
+                </a>
+            </div>
+        `;
+        container.appendChild(item);
+    });
+}
+
+// ------ ADMIN: DOCTORS TELEGRAM ID LINKING ------
+async function loadDoctorsLinkList() {
+    const container = document.getElementById("admin-doctors-link-list");
+    if (!container) return;
+
+    try {
+        container.innerHTML = '<div class="text-center py-2"><i class="fa-solid fa-spinner fa-spin" style="color:var(--accent);"></i> Yuklanmoqda...</div>';
+        const res = await fetch("/api/doctors/all");
+        if (!res.ok) throw new Error();
+        const doctors = await res.json();
+
+        if (doctors.length === 0) {
+            container.innerHTML = '<p style="color:var(--text-secondary); font-size:12px;">Shifokorlar ro\'yxati bo\'sh.</p>';
+            return;
+        }
+
+        container.innerHTML = "";
+        doctors.forEach(doc => {
+            const row = document.createElement("div");
+            row.style = "display:flex; align-items:center; gap:10px; background:rgba(255,255,255,0.03); padding:8px 12px; border-radius:10px; border:1px solid rgba(255,255,255,0.05);";
+            row.innerHTML = `
+                <div style="flex:1;">
+                    <div style="font-weight:600; font-size:0.9rem; color:white;">${doc.name}</div>
+                    <div style="font-size:0.75rem; color:var(--text-secondary);">${doc.specialty || 'Shifokor'}</div>
+                </div>
+                <div style="display:flex; align-items:center; gap:6px;">
+                    <input type="number" id="doc-link-chat-id-${doc.id}" value="${doc.chat_id || ''}" placeholder="Telegram ID" style="width:110px; padding:6px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.2); background:rgba(0,0,0,0.2); color:white; font-size:0.85rem;">
+                    <button class="btn-primary" onclick="saveDoctorChatId(${doc.id}, '${doc.name.replace(/'/g, "\\'")}')" style="padding:6px 12px; font-size:0.8rem; width:auto; border-radius:8px; white-space:nowrap;">Saqlash</button>
+                </div>
+            `;
+            container.appendChild(row);
+        });
+    } catch (e) {
+        container.innerHTML = '<p style="color:var(--red); font-size:12px;">Yuklashda xatolik yuz berdi.</p>';
+    }
+}
+
+async function saveDoctorChatId(doctorId, name) {
+    const input = document.getElementById(`doc-link-chat-id-${doctorId}`);
+    const chatIdVal = input.value.trim();
+    const chatId = chatIdVal ? parseInt(chatIdVal) : null;
+
+    try {
+        const res = await fetch("/api/doctors/update-chat-id", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ doctor_id: doctorId, chat_id: chatId })
+        });
+        if (res.ok) {
+            showToast(`${name} uchun Telegram ID saqlandi!`, "success");
+            loadDoctorsLinkList();
+        } else {
+            showToast("Saqlashda xatolik yuz berdi!", "error");
+        }
+    } catch (e) {
+        showToast("Aloqa xatosi!", "error");
+    }
+}
+
 

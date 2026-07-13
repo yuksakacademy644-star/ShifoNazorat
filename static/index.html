@@ -311,8 +311,16 @@
                             </label>
                         </div>
 
-                        <div class="settings-footer">
-                            <p><i class="fa-solid fa-circle-info"></i> Boshqa sozlamalar (Masalan, Guruh ID va Admin ID) `.env` faylida o'zgartiriladi.</p>
+                    </div>
+
+                    <!-- Doctor Linking Section -->
+                    <div class="glass-panel mt-4">
+                        <h4 style="margin: 0 0 10px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;"><i class="fa-solid fa-link" style="color:var(--accent);"></i> Shifokorlarni ulash (Telegram ID)</h4>
+                        <p style="font-size:0.8rem; color:var(--text-secondary); margin: 0 0 15px 0;">
+                            Shifokorlarning shaxsiy kabinetiga kirishi uchun ularning Telegram Chat ID raqamlarini bog'lang.
+                        </p>
+                        <div id="admin-doctors-link-list" style="display:flex; flex-direction:column; gap:12px;">
+                            <!-- Loaded dynamically -->
                         </div>
                     </div>
                 </section>
@@ -373,6 +381,106 @@
                 </button>
             </nav>
         </div>
+
+
+        <!-- ================= DOCTOR DASHBOARD VIEW ================= -->
+        <div id="doctor-view" class="view-container hidden">
+            <!-- Header -->
+            <header class="app-header">
+                <div class="logo-area">
+                    <div class="logo-icon"><i class="fa-solid fa-user-doctor"></i></div>
+                    <div>
+                        <h1 id="doctor-title-name">Shifokor</h1>
+                        <p>Shifokor Ishchi Paneli</p>
+                    </div>
+                </div>
+                <div class="profile-badge">
+                    <span id="doctor-chat-id-badge">ID: --</span>
+                </div>
+            </header>
+
+            <!-- Main Content Area -->
+            <main class="main-content">
+                
+                <!-- 1. Doctor Bookings Tab (Bugungi qabullar) -->
+                <section id="tab-doc-bookings" class="tab-content">
+                    <h2 class="tab-title">Bugungi Bemorlar Ro'yxati</h2>
+                    <div id="doc-bookings-list" class="patients-list">
+                        <!-- Loaded dynamically -->
+                        <div class="text-center py-8">
+                            <i class="fa-solid fa-calendar-check" style="font-size: 2.5rem; opacity: 0.2; margin-bottom: 10px;"></i>
+                            <p style="color: var(--text-secondary);">Bugun uchun yozilgan bemorlar mavjud emas.</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 2. Doctor Archive Tab (Bemorlar Arxivi) -->
+                <section id="tab-doc-archive" class="tab-content hidden">
+                    <h2 class="tab-title">Bemorlar Arxivi & Tarixi</h2>
+                    <div class="search-box">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                        <input type="text" id="doc-archive-search-input" placeholder="Bemor ismi yoki telefonini qidiring...">
+                    </div>
+                    <div id="doc-archive-list" class="patients-list mt-3">
+                        <!-- Loaded dynamically -->
+                    </div>
+                </section>
+
+                <!-- 3. Doctor KPIs Tab (Statistika) -->
+                <section id="tab-doc-kpis" class="tab-content hidden">
+                    <h2 class="tab-title">Mening Statistikam (KPI)</h2>
+                    
+                    <div class="stats-grid roi-stats-grid">
+                        <div class="stat-card">
+                            <div class="card-icon blue"><i class="fa-solid fa-hospital-user"></i></div>
+                            <div class="card-info">
+                                <span class="card-label">Qabul qilingan bemorlar</span>
+                                <h3 id="doc-stat-total-patients">0</h3>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="card-icon yellow"><i class="fa-solid fa-star"></i></div>
+                            <div class="card-info">
+                                <span class="card-label">O'rtacha reyting ball</span>
+                                <h3 id="doc-stat-avg-rating">0.0</h3>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="card-icon green"><i class="fa-solid fa-arrow-rotate-left"></i></div>
+                            <div class="card-info">
+                                <span class="card-label">Qaytib kelgan bemorlar</span>
+                                <h3 id="doc-stat-repeat-patients">0</h3>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="card-icon purple"><i class="fa-solid fa-percent"></i></div>
+                            <div class="card-info">
+                                <span class="card-label">Qaytib kelish koeffitsiyenti</span>
+                                <h3 id="doc-stat-repeat-rate">0%</h3>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+            </main>
+
+            <!-- Bottom Navigation Bar for Doctor -->
+            <nav class="bottom-nav">
+                <button class="nav-item active" data-tab="doc-bookings">
+                    <i class="fa-solid fa-calendar-day"></i>
+                    <span>Bugungi qabullar</span>
+                </button>
+                <button class="nav-item" data-tab="doc-archive">
+                    <i class="fa-solid fa-box-archive"></i>
+                    <span>Bemorlar tarixi</span>
+                </button>
+                <button class="nav-item" data-tab="doc-kpis">
+                    <i class="fa-solid fa-user-chart"></i>
+                    <span>Statistika</span>
+                </button>
+            </nav>
+        </div>
+
 
         <!-- ================= PATIENT PORTAL VIEW ================= -->
         <div id="patient-view" class="view-container hidden">
@@ -750,6 +858,76 @@
                         <div id="admin-labs-list" class="emr-history-list">
                             <!-- Loaded dynamically -->
                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- DOCTOR: PATIENT RECEPTION MODAL -->
+        <div id="doc-accept-modal" class="modal-overlay hidden">
+            <div class="modal-box glass-panel">
+                <div class="modal-header">
+                    <h3><i class="fa-solid fa-notes-medical"></i> Bemor Qabuli</h3>
+                    <button class="modal-close" onclick="closeDocAcceptModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <form id="doc-accept-form">
+                        <input type="hidden" id="doc-accept-booking-id">
+                        <div style="margin-bottom: 12px;">
+                            <span style="font-size: 0.85rem; color: var(--text-secondary);">Bemor:</span>
+                            <strong id="doc-accept-patient-name" style="font-size: 1.1rem; color: white; display: block; margin-top: 2px;">--</strong>
+                        </div>
+                        <div class="form-group">
+                            <label>Tashxis / Kasalligi (Diagnoz)</label>
+                            <textarea id="doc-accept-diagnosis" rows="3" required placeholder="Bemorning kasallik tashxisini yozing..."></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>Dori-darmonlar & Davolash kursi (Tavsiyalar)</label>
+                            <textarea id="doc-accept-prescription" rows="3" placeholder="Qabul qilish tartibi va dori-darmonlar tavsiyalari..."></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>Tahlil natijalari (Rasm/PDF yuklash - Ixtiyoriy)</label>
+                            <input type="file" id="doc-accept-file" accept="image/*,application/pdf" style="width: 100%; border: none; padding: 4px 0;">
+                        </div>
+                        <div class="form-group" style="display:none;">
+                            <label>Eslatmalar</label>
+                            <input type="text" id="doc-accept-notes" value="">
+                        </div>
+                        <button type="submit" class="btn-primary" style="width:100%; margin-top:15px;">
+                            <i class="fa-solid fa-circle-check"></i> Qabulni Yakunlash & Yuborish
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- DOCTOR: PATIENT HISTORY MODAL (ARCHIVE VIEW) -->
+        <div id="doc-history-modal" class="modal-overlay hidden">
+            <div class="modal-box glass-panel" style="max-height: 85vh; overflow-y: auto;">
+                <div class="modal-header">
+                    <h3><i class="fa-solid fa-address-card"></i> Bemor Tarixi</h3>
+                    <button class="modal-close" onclick="closeDocHistoryModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div style="padding-bottom:12px; border-bottom:1px solid rgba(255,255,255,0.1); margin-bottom:15px;">
+                        <h4 id="doc-history-patient-name" style="color:white; margin:0 0 4px 0;">--</h4>
+                        <p id="doc-history-patient-phone" style="color:var(--text-secondary); font-size:12px; margin:0;"><i class="fa-solid fa-phone"></i> --</p>
+                    </div>
+
+                    <!-- Tabs for EMR details -->
+                    <div style="display:flex; gap:8px; margin-bottom:15px;">
+                        <button class="filter-pill active" id="btn-doc-emr-records" onclick="switchDocHistoryTab('records')">Diagnoz & Tavsiyalar</button>
+                        <button class="filter-pill" id="btn-doc-emr-labs" onclick="switchDocHistoryTab('labs')">Tahlil natijalari</button>
+                    </div>
+
+                    <!-- EMR Records -->
+                    <div id="doc-history-records-container" class="emr-history-list">
+                        <!-- Loaded dynamically -->
+                    </div>
+
+                    <!-- Lab Results -->
+                    <div id="doc-history-labs-container" class="emr-history-list hidden">
+                        <!-- Loaded dynamically -->
                     </div>
                 </div>
             </div>

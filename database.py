@@ -1,5 +1,6 @@
 import sqlite3
 from datetime import datetime, timedelta
+from typing import Optional
 from utils import normalize_phone
 
 DB_NAME = "shifo_nazorat.db"
@@ -80,6 +81,12 @@ def init_db():
     
     try:
         cursor.execute("ALTER TABLE doctors ADD COLUMN price REAL DEFAULT 100000.0")
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass
+        
+    try:
+        cursor.execute("ALTER TABLE doctors ADD COLUMN chat_id INTEGER DEFAULT NULL")
         conn.commit()
     except sqlite3.OperationalError:
         pass
@@ -834,6 +841,69 @@ def get_doctor_kpis():
         
     conn.close()
     return kpis
+
+def get_doctor_by_chat_id(chat_id: int):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM doctors WHERE chat_id = ?", (chat_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+def update_doctor_chat_id(doctor_id: int, chat_id: Optional[int]):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE doctors SET chat_id = ? WHERE id = ?", (chat_id, doctor_id))
+    conn.commit()
+    conn.close()
+    return True
+
+def get_doctor_today_bookings(doctor_name: str):
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT b.*, p.bemor_ismi, p.bemor_telefoni, p.chat_id
+        FROM bookings b
+        JOIN patients p ON b.patient_id = p.id
+        WHERE b.doctor_name = ? AND b.booking_date = ?
+        ORDER BY b.booking_time ASC
+    ''', (doctor_name, today_str))
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+def get_doctor_kpi_single(doctor_name: str):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Total patients
+    cursor.execute("SELECT COUNT(*) FROM patients WHERE shifokor_ismi = ?", (doctor_name,))
+    total_p = cursor.fetchone()[0]
+    
+    # Repeat patients (visits > 1)
+    cursor.execute("SELECT COUNT(*) FROM patients WHERE shifokor_ismi = ? AND tashriflar_soni > 1", (doctor_name,))
+    repeat_p = cursor.fetchone()[0]
+    
+    # Average rating
+    cursor.execute("SELECT AVG(oxirgi_baho) FROM patients WHERE shifokor_ismi = ? AND oxirgi_baho IS NOT NULL", (doctor_name,))
+    avg_r_row = cursor.fetchone()[0]
+    avg_r = round(avg_r_row, 2) if avg_r_row is not None else 0.0
+    
+    # Revenue generated
+    cursor.execute("SELECT SUM(price) FROM bookings WHERE doctor_name = ? AND status = 'Keldi'", (doctor_name,))
+    rev_row = cursor.fetchone()[0]
+    revenue = float(rev_row) if rev_row is not None else 0.0
+    
+    conn.close()
+    return {
+        "doctor_name": doctor_name,
+        "total_patients": total_p,
+        "repeat_patients": repeat_p,
+        "repeat_rate": round((repeat_p / max(total_p, 1)) * 100, 1),
+        "avg_rating": avg_r,
+        "revenue": revenue
+    }
 
 def get_roi_analytics():
     conn = get_db_connection()

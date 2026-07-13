@@ -53,6 +53,10 @@ class SettingsPayload(BaseModel):
     auto_messages_enabled: Optional[str] = None
     test_mode: Optional[str] = None
 
+class DoctorUpdateChatIdPayload(BaseModel):
+    doctor_id: int
+    chat_id: Optional[int] = None
+
 # Ensure static directory exists
 os.makedirs("static", exist_ok=True)
 
@@ -85,6 +89,11 @@ def check_user(chat_id: int, name: str = "Mehmon"):
         
     if chat_id in admin_ids:
         return {"role": "admin", "name": name, "chat_id": chat_id}
+        
+    # Check if this user is a doctor
+    doctor = database.get_doctor_by_chat_id(chat_id)
+    if doctor:
+        return {"role": "doctor", "name": doctor['name'], "chat_id": chat_id, "doctor": doctor}
         
     patient = database.get_patient_by_chat_id(chat_id)
     if patient:
@@ -556,6 +565,119 @@ def add_family_member_api(payload: FamilyAddPayload):
     if not member:
         raise HTTPException(status_code=500, detail="Oila a'zosini qo'shishda xatolik yuz berdi.")
     return {"status": "success", "member": member}
+
+# 7. Doctor Cabinet / Dashboard Endpoints
+@app.post("/api/doctors/update-chat-id")
+def update_doctor_chat_id_api(payload: DoctorUpdateChatIdPayload):
+    database.update_doctor_chat_id(payload.doctor_id, payload.chat_id)
+    return {"status": "success"}
+
+@app.get("/api/doctor/bookings")
+def get_doctor_bookings_api(chat_id: int):
+    doctor = database.get_doctor_by_chat_id(chat_id)
+    if not doctor:
+        raise HTTPException(status_code=404, detail="Shifokor profili topilmadi.")
+    return database.get_doctor_today_bookings(doctor['name'])
+
+@app.get("/api/doctor/kpis")
+def get_doctor_kpis_api(chat_id: int):
+    doctor = database.get_doctor_by_chat_id(chat_id)
+    if not doctor:
+        raise HTTPException(status_code=404, detail="Shifokor profili topilmadi.")
+    return database.get_doctor_kpi_single(doctor['name'])
+
+@app.post("/api/doctor/accept-patient")
+async def doctor_accept_patient(
+    request: Request,
+    booking_id: int = Form(...),
+    diagnosis: str = Form(...),
+    prescription: str = Form(""),
+    notes: str = Form(""),
+    file: Optional[UploadFile] = File(None)
+):
+    import shutil
+    bot = getattr(request.app.state, "bot", None)
+    
+    # 1. Fetch booking
+    conn = database.get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM bookings WHERE id = ?", (booking_id,))
+    booking = cursor.fetchone()
+    conn.close()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Qabul topilmadi.")
+        
+    booking = dict(booking)
+    patient_id = booking['patient_id']
+    doctor_name = booking['doctor_name']
+    visit_date = booking['booking_date']
+    
+    # 2. Update booking status to 'Keldi'
+    updated_booking = database.update_booking_status(booking_id, 'Keldi')
+    if not updated_booking:
+        raise HTTPException(status_code=500, detail="Qabul holatini yangilab bo'lmadi.")
+        
+    # 3. Create medical record
+    record = database.add_medical_record(
+        patient_id=patient_id,
+        doctor_name=doctor_name,
+        visit_date=visit_date,
+        diagnosis=diagnosis,
+        prescription=prescription,
+        notes=notes
+    )
+    if not record:
+        raise HTTPException(status_code=500, detail="Tibbiy xulosani yaratib bo'lmadi.")
+        
+    # 4. Save file if uploaded
+    lab_result = None
+    if file and file.filename:
+        os.makedirs("static/uploads", exist_ok=True)
+        timestamp = int(datetime.now().timestamp())
+        filename_clean = file.filename.replace(" ", "_")
+        relative_path = f"static/uploads/{patient_id}_{timestamp}_{filename_clean}"
+        
+        with open(relative_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+            
+        test_name = "Tahlil natijasi (Tavsiyaga ilova)"
+        lab_result = database.add_lab_result(patient_id, test_name, "/" + relative_path)
+        
+    # 5. Send Telegram Push Notification to patient
+    if bot:
+        patient = database.get_patient_by_id(patient_id)
+        if patient and patient.get('chat_id'):
+            chat_id = patient['chat_id']
+            try:
+                push_text = (
+                    f"🔔 **Tibbiy qabul yakunlandi!**\n\n"
+                    f"Sizga shifokor *{doctor_name}* tomonidan yangi tavsiyalar va tashxis kiritildi. "
+                    f"Tizimga kirib batafsil tanishishingiz mumkin. 🏥\n\n"
+                    f"📋 Tashxis: *{diagnosis}*\n"
+                    f"💊 Tavsiyalar: {prescription if prescription else '-'}"
+                )
+                await bot.send_message(chat_id=chat_id, text=push_text, parse_mode="Markdown")
+                
+                # Send the PDF/Image document if uploaded
+                if file and file.filename:
+                    caption = (
+                        f"📄 **Ilova qilingan tahlil natijasi:**\n"
+                        f"🧪 {file.filename}"
+                    )
+                    with open(relative_path, "rb") as doc_file:
+                        await bot.send_document(
+                            chat_id=chat_id,
+                            document=doc_file,
+                            filename=file.filename,
+                            caption=caption,
+                            parse_mode="Markdown"
+                        )
+                        if lab_result:
+                            database.mark_lab_report_sent(lab_result['id'])
+            except Exception as e:
+                logger.error(f"Failed to send Doctor EMR Telegram notification to patient: {e}")
+                
+    return {"status": "success", "record": record, "lab": lab_result, "booking": updated_booking}
 
 # Health check endpoint (Render uses this)
 @app.head("/")
