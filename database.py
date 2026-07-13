@@ -68,6 +68,13 @@ def init_db():
         )
     ''')
     
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS blocked_users (
+            chat_id INTEGER PRIMARY KEY,
+            blocked_at TEXT DEFAULT (datetime('now', 'localtime'))
+        )
+    ''')
+    
     # 1. Table: doctors
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS doctors (
@@ -1209,4 +1216,21 @@ def save_previsit_anamnesis(chat_id, text):
         return closest_booking
     conn.close()
     return None
+
+# Blocked users management
+def block_user(chat_id: int):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("INSERT OR IGNORE INTO blocked_users (chat_id) VALUES (?)", (chat_id,))
+    conn.commit()
+    conn.close()
+
+def is_user_blocked(chat_id: int) -> bool:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT 1 FROM blocked_users WHERE chat_id = ?", (chat_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return True if row else False
+
 

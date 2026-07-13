@@ -4,6 +4,8 @@ from datetime import datetime, timedelta
 from contextlib import asynccontextmanager
 import uvicorn
 from fastapi import FastAPI
+from functools import wraps
+import re
 
 from telegram import (
     Update,
@@ -36,6 +38,93 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 logger = logging.getLogger(__name__)
+
+# Security & Anti-Exploit input validation and blocking system
+def is_malicious(text: str) -> bool:
+    if not text:
+        return False
+    # 1. Length check for string overflow/DoS (e.g. 4000 characters or more)
+    if len(text) >= 4000:
+        return True
+
+    # 2. SQL injection, XSS, Path traversal, template injection patterns, bot manipulation
+    static_threats = [
+        "' OR '1'='1' --",
+        '" OR "1"="1" --',
+        "'; DROP TABLE profiles; --",
+        "'; DROP TABLE survey_responses; --",
+        "<script>",
+        "onerror=",
+        "attacker.com",
+        "../../../../etc/passwd",
+        "config.env",
+        "%00",
+        "\\x00",
+        "{{7*7}}",
+        "${7*7}",
+        "<%= 7*7 %>",
+        "/setwebhook",
+        "/deletewebhook",
+        "﷽"
+    ]
+    text_lower = text.lower()
+    for pattern in static_threats:
+        if pattern.lower() in text_lower:
+            return True
+
+    # 3. Unicode Right-to-Left Override check
+    if "\u202e" in text_lower:
+        return True
+
+    # 4. Telegram Bot Token pattern
+    if re.search(r'[0-9]{9,11}:[a-zA-Z0-9_-]{35}', text):
+        return True
+
+    # 5. Zalgo characters (combining diacritical marks) density
+    # If there are more than 15 combining characters in a short string, it's Zalgo text
+    combining_marks = re.findall(r'[\u0300-\u036f]', text)
+    if len(combining_marks) > 15:
+        return True
+
+    return False
+
+def check_banned(func):
+    @wraps(func)
+    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
+        if not update or not update.effective_chat:
+            return await func(update, context, *args, **kwargs)
+
+        chat_id = update.effective_chat.id
+
+        # 1. If already blocked, ignore/stop execution
+        if database.is_user_blocked(chat_id):
+            logger.warning(f"Blocked user {chat_id} attempted to communicate.")
+            return
+
+        # 2. Check if the incoming message contains malicious payloads
+        text_to_check = ""
+        if update.message and update.message.text:
+            text_to_check = update.message.text
+        elif update.message and update.message.caption:
+            text_to_check = update.message.caption
+        elif update.callback_query and update.callback_query.data:
+            text_to_check = update.callback_query.data
+
+        if is_malicious(text_to_check):
+            logger.warning(f"Malicious content detected from user {chat_id}! Blocking user.")
+            database.block_user(chat_id)
+            # Notify the user
+            try:
+                await update.effective_message.reply_text(
+                    "❌ Xavfsizlik tizimi tomonidan shubhali faollik aniqlandi. Siz bloklandingiz.\n"
+                    "Система безопасности обнаружила подозрительную активность. Вы заблокированы."
+                )
+            except Exception:
+                pass
+            return
+
+        return await func(update, context, *args, **kwargs)
+    return wrapper
 
 # FSM states for adding a patient (Chat Interface)
 CHOOSING_NAME, CHOOSING_PHONE, CHOOSING_DOCTOR, CHOOSING_DATE = range(4)
@@ -107,6 +196,7 @@ def get_patient_keyboard(webapp_url, chat_id, lang='uz'):
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 # Start Command
+@check_banned
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     chat_id = update.effective_chat.id
     user = update.effective_user
@@ -134,6 +224,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         )
 
 # Contact Sharing Registration Handler
+@check_banned
 async def contact_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     contact = update.message.contact
     chat_id = update.effective_chat.id
@@ -164,6 +255,7 @@ async def contact_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         await update.message.reply_text(text, reply_markup=ReplyKeyboardRemove())
 
 # Normal text messages handler
+@check_banned
 async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     text = update.message.text.strip()
     chat_id = update.effective_chat.id
@@ -264,6 +356,7 @@ async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
 
 
 # FSM: Add Patient start
+@check_banned
 async def add_patient_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     chat_id = update.effective_chat.id
     if chat_id not in config.get_admin_ids():
@@ -275,6 +368,7 @@ async def add_patient_start(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     )
     return CHOOSING_NAME
 
+@check_banned
 async def add_patient_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data['temp_patient_name'] = update.message.text.strip()
     await update.message.reply_text(
@@ -283,6 +377,7 @@ async def add_patient_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     )
     return CHOOSING_PHONE
 
+@check_banned
 async def add_patient_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     phone_input = update.message.text.strip()
     norm = normalize_phone(phone_input)
@@ -301,6 +396,7 @@ async def add_patient_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     )
     return CHOOSING_DOCTOR
 
+@check_banned
 async def add_patient_doctor(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data['temp_patient_doctor'] = update.message.text.strip()
     date_kb = ReplyKeyboardMarkup([["Bugun"], ["❌ Bekor qilish"]], resize_keyboard=True)
@@ -310,6 +406,7 @@ async def add_patient_doctor(update: Update, context: ContextTypes.DEFAULT_TYPE)
     )
     return CHOOSING_DATE
 
+@check_banned
 async def add_patient_date(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     date_input = update.message.text.strip()
     if date_input.lower() == "bugun":
@@ -354,6 +451,7 @@ async def add_patient_date(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     context.user_data.clear()
     return ConversationHandler.END
 
+@check_banned
 async def cancel_action(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     chat_id = update.effective_chat.id
     context.user_data.clear()
@@ -437,6 +535,7 @@ async def show_settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     await update.message.reply_text(text, reply_markup=get_settings_markup(), parse_mode="Markdown")
 
 # Callback Handlers
+@check_banned
 async def handle_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
