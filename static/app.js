@@ -1,5 +1,22 @@
-// Initialize Telegram WebApp SDK
-const tg = window.Telegram.WebApp;
+// Initialize Telegram WebApp SDK (safe fallback if SDK not loaded)
+var tg;
+try {
+    tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
+} catch(e) {
+    tg = null;
+}
+
+// Fallback mock for non-Telegram environments
+if (!tg) {
+    tg = {
+        ready: function() {},
+        expand: function() {},
+        initDataUnsafe: {},
+        close: function() {},
+        showAlert: function(msg) { alert(msg); },
+        MainButton: { setText: function(){}, show: function(){}, hide: function(){}, onClick: function(){} }
+    };
+}
 
 // App State
 let currentUser = {
@@ -23,44 +40,45 @@ const ratingDescriptions = {
 
 // ================= INITIALIZATION =================
 document.addEventListener("DOMContentLoaded", () => {
-    // Notify Telegram we are ready
-    tg.ready();
-    tg.expand();
+    try {
+        // Notify Telegram we are ready
+        tg.ready();
+        tg.expand();
 
-    // Define string extensions first
-    function StringExtensions() {
+        // Define string extensions first
         if (!String.prototype.stripOrEmpty) {
-            String.prototype.stripOrEmpty = function() {
-                return this.trim();
-            };
+            String.prototype.stripOrEmpty = function() { return this.trim(); };
         }
-    }
-    StringExtensions();
 
-    // Extract user info from URL query parameters (sent by bot buttons) or Telegram WebApp user object
-    const urlParams = new URLSearchParams(window.location.search);
-    const tgUser = tg.initDataUnsafe?.user;
-    const queryChatId = parseInt(urlParams.get("chat_id"));
-    
-    if (queryChatId) {
-        currentUser.chat_id = queryChatId;
-        if (tgUser) {
-            currentUser.name = `${tgUser.first_name} ${tgUser.last_name || ''}`.stripOrEmpty();
+        // Extract user info from URL query parameters or Telegram WebApp user object
+        const urlParams = new URLSearchParams(window.location.search);
+        const tgUser = tg.initDataUnsafe ? tg.initDataUnsafe.user : null;
+        const queryChatId = parseInt(urlParams.get("chat_id")) || 0;
+
+        if (queryChatId) {
+            currentUser.chat_id = queryChatId;
+            currentUser.name = tgUser
+                ? ((tgUser.first_name || '') + ' ' + (tgUser.last_name || '')).trim()
+                : (urlParams.get("name") || "Mehmon");
+        } else if (tgUser) {
+            currentUser.chat_id = tgUser.id;
+            currentUser.name = ((tgUser.first_name || '') + ' ' + (tgUser.last_name || '')).trim();
         } else {
-            currentUser.name = urlParams.get("name") || "Mehmon";
+            currentUser.chat_id = 0;
+            currentUser.name = "Mehmon";
         }
-    } else if (tgUser) {
-        currentUser.chat_id = tgUser.id;
-        currentUser.name = `${tgUser.first_name} ${tgUser.last_name || ''}`.stripOrEmpty();
-    } else {
-        // Fallback for local browser testing
-        currentUser.chat_id = 0;
-        currentUser.name = "Mehmon";
-    }
 
-    // Authenticate and load appropriate view
-    checkUserRole();
-    setupEventListeners();
+        // Authenticate and load appropriate view
+        checkUserRole();
+        setupEventListeners();
+
+    } catch(initErr) {
+        console.error("App init error:", initErr);
+        const loaderStatus = document.getElementById("loader-status");
+        if (loaderStatus) loaderStatus.innerText = "❌ Ilova ishga tushishda xatolik: " + initErr.message;
+        const loaderRetry = document.getElementById("loader-retry-btn");
+        if (loaderRetry) loaderRetry.style.display = "inline-block";
+    }
 });
 
 // ====== CACHE HELPERS ======
