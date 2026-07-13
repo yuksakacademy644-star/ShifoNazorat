@@ -1035,8 +1035,11 @@ app.router.lifespan_context = lifespan
 
 # Main launch point
 def main() -> None:
-    # Run Uvicorn server (port 8000) which runs uvicorn loop and coordinates lifespan
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    import os
+    # Read PORT from environment variable (required by Render)
+    port = int(os.environ.get("PORT", 8000))
+    # Run Uvicorn server which runs uvicorn loop and coordinates lifespan
+    uvicorn.run(app, host="0.0.0.0", port=port)
 
 if __name__ == "__main__":
     main()
