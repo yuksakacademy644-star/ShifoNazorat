@@ -54,7 +54,8 @@ def get_webapp_url():
         return DYNAMIC_WEBAPP_URL
         
     load_dotenv()
-    url = os.getenv("WEBAPP_URL", "")
+    # Check WEBAPP_URL, if not found fallback to Render's auto-provided RENDER_EXTERNAL_URL
+    url = os.getenv("WEBAPP_URL", "") or os.getenv("RENDER_EXTERNAL_URL", "")
     if not url:
         return "https://t.me"
         
