@@ -39,7 +39,7 @@ const ratingDescriptions = {
 };
 
 // ================= INITIALIZATION =================
-document.addEventListener("DOMContentLoaded", () => {
+function initApp() {
     try {
         // Notify Telegram we are ready
         tg.ready();
@@ -74,12 +74,19 @@ document.addEventListener("DOMContentLoaded", () => {
 
     } catch(initErr) {
         console.error("App init error:", initErr);
-        const loaderStatus = document.getElementById("loader-status");
-        if (loaderStatus) loaderStatus.innerText = "❌ Ilova ishga tushishda xatolik: " + initErr.message;
-        const loaderRetry = document.getElementById("loader-retry-btn");
+        var loaderStatus = document.getElementById("loader-status");
+        if (loaderStatus) loaderStatus.innerText = "❌ Xatolik: " + initErr.message;
+        var loaderRetry = document.getElementById("loader-retry-btn");
         if (loaderRetry) loaderRetry.style.display = "inline-block";
     }
-});
+}
+
+// Run immediately if DOM is ready, otherwise wait for DOMContentLoaded
+if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initApp);
+} else {
+    initApp();
+}
 
 // ====== CACHE HELPERS ======
 const CACHE_KEY_PREFIX = "shifo_user_";
