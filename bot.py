@@ -1019,6 +1019,21 @@ async def lifespan(fastapi_app: FastAPI):
     await bot_app.updater.start_polling(drop_pending_updates=True)
     logger.info("Telegram Bot starts polling.")
     
+    # Set global webapp menu button on Render
+    if is_render:
+        try:
+            render_url = config.get_webapp_url()
+            if render_url and "t.me" not in render_url:
+                await bot_app.bot.set_chat_menu_button(
+                    menu_button=MenuButtonWebApp(
+                        text="🏥 ShifoNazorat",
+                        web_app=WebAppInfo(url=render_url)
+                    )
+                )
+                logger.info(f"Successfully configured global menu button on Render to: {render_url}")
+        except Exception as me:
+            logger.error(f"Failed to set global menu button on Render: {me}")
+    
     # Start the follow-up background checker loop
     bg_task = asyncio.create_task(auto_followup_loop(bot_app))
     # Start the daily 09:00 recare checkup loop

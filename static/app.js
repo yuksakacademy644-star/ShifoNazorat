@@ -1423,6 +1423,8 @@ async function loadPatientNextAppointments() {
             container.appendChild(card);
         });
     } catch (e) {
+        container.innerHTML = `<p class="text-center py-3" style="color:var(--red);">Yuklashda xatolik yuz berdi.</p>`;
+    }
 }
 
 // ================= PATIENT: Q&A CHAT LOGIC =================
