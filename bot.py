@@ -1212,9 +1212,66 @@ async def start_auto_tunnel(bot_app=None):
         await asyncio.sleep(5)
 
 
+async def render_keep_alive_loop():
+    """
+    Background loop to ping the Render Webapp health check endpoint.
+    This prevents the Render Free instance from spinning down (sleeping).
+    Pings every 10 minutes (Render timeout is 15 minutes).
+    """
+    import os
+    import httpx
+    
+    # Only run on Render
+    is_render = os.getenv("RENDER") == "true"
+    if not is_render:
+        logger.info("Not running on Render. Keep-alive ping loop disabled.")
+        return
+        
+    url = config.get_webapp_url()
+    if not url or "t.me" in url:
+        url = os.getenv("RENDER_EXTERNAL_URL", "")
+        
+    if not url:
+        logger.warning("Render Keep-alive enabled but no URL could be determined.")
+        return
+        
+    url = url.rstrip("/")
+    health_url = f"{url}/health"
+    logger.info(f"Render keep-alive ping loop started. Targeting: {health_url}")
+    
+    # Wait initially for 1 minute before starting to ping
+    await asyncio.sleep(60)
+    
+    while True:
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(health_url)
+                if response.status_code == 200:
+                    logger.info(f"Keep-alive ping success: {health_url} (HTTP 200)")
+                else:
+                    logger.warning(f"Keep-alive ping warning: {health_url} returned HTTP {response.status_code}")
+        except Exception as e:
+            logger.error(f"Keep-alive ping failed: {e}")
+            
+        # Ping every 10 minutes
+        await asyncio.sleep(600)
+
+
 # Lifespan manager for FastAPI to run Telegram Bot concurrently
 @asynccontextmanager
 async def lifespan(fastapi_app: FastAPI):
+    # Prevent Windows from going to sleep due to inactivity while the bot is running
+    import sys
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            ES_CONTINUOUS = 0x80000000
+            ES_SYSTEM_REQUIRED = 0x00000001
+            ctypes.windll.kernel32.SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED)
+            logger.info("Windows sleep prevention activated (System will stay awake).")
+        except Exception as e:
+            logger.error(f"Failed to activate Windows sleep prevention: {e}")
+
     # Initialize SQLite tables
     database.init_db()
     
@@ -1290,13 +1347,27 @@ async def lifespan(fastapi_app: FastAPI):
     daily_task = asyncio.create_task(daily_checkup_loop(bot_app))
     # Start the reminders and loyalty background loop
     reminders_task = asyncio.create_task(reminders_and_loyalty_loop(bot_app))
+    # Start Render keep-alive ping loop to prevent sleeping
+    keep_alive_task = asyncio.create_task(render_keep_alive_loop())
     
     yield
     
+    # Restore Windows sleep settings to default on shutdown
+    import sys
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            ES_CONTINUOUS = 0x80000000
+            ctypes.windll.kernel32.SetThreadExecutionState(ES_CONTINUOUS)
+            logger.info("Windows sleep settings restored to default.")
+        except Exception as e:
+            logger.error(f"Failed to restore Windows sleep settings: {e}")
+
     # Graceful shutdown
     bg_task.cancel()
     daily_task.cancel()
     reminders_task.cancel()
+    keep_alive_task.cancel()
     if tunnel_process:
         try:
             tunnel_process.terminate()
@@ -1308,6 +1379,7 @@ async def lifespan(fastapi_app: FastAPI):
     try:
         await bg_task
         await reminders_task
+        await keep_alive_task
     except asyncio.CancelledError:
         pass
         
