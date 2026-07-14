@@ -968,6 +968,17 @@ function setupClinicAutomationEventListeners() {
     if (btnFamilyAdd) {
         btnFamilyAdd.addEventListener("click", submitFamilyMember);
     }
+
+    // Booking filter pills click event listeners
+    const bookingFilterPills = document.querySelectorAll(".booking-filter-pill");
+    bookingFilterPills.forEach(pill => {
+        pill.addEventListener("click", () => {
+            bookingFilterPills.forEach(p => p.classList.remove("active"));
+            pill.classList.add("active");
+            const filter = pill.getAttribute("data-bfilter") || "all";
+            loadBookingsList(filter);
+        });
+    });
 }
 
 // 2. Bookings manager (Admin view)
